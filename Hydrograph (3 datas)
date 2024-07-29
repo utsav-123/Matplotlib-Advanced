@@ -1,0 +1,25 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+fig, ax1 = plt.subplots()
+
+# Read the data from Excel
+df = pd.read_excel("C:\\Users\\Dell\\Dam Breach Hydrograph.xlsx", 'Sheet1')
+print(df)
+
+plt.plot(df['min'],df['10 m'], color = 'orange', label = "Sc-1 (10m)", linewidth = 1.5)
+plt.plot(df['min'],df['30 m'],color = 'green', label = "Sc-2 (30m)", linewidth = 1.5)
+plt.plot(df['min'],df['50 m'],color = 'blue', label = "Sc-3 (50m)", linewidth = 1.5)
+
+plt.xlabel("Time (minutes)", fontsize = 10 )
+plt.ylabel("Discharge(m³/s)", fontsize = 10)
+
+
+plt.legend()
+plt.show()
+
+fig.tight_layout()
+fig.savefig("Dam Breach Hydrograph.jpg")
+
+
