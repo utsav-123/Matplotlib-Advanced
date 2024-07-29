@@ -4,6 +4,7 @@ import numpy as np
 
 # Read the data from Excel
 df = pd.read_excel("C:\\Users\\Dell\\Temp and Prec Time Series.xlsx", 'Sheet1')
+print(df)
 
 # Create the figure and axis objects
 fig, ax1 = plt.subplots()
