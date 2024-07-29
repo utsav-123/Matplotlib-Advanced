@@ -1,0 +1,56 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+# Read the data from Excel
+df = pd.read_excel("C:\\Users\\Dell\\Temp and Prec Time Series.xlsx", 'Sheet1')
+
+# Create the figure and axis objects
+fig, ax1 = plt.subplots()
+
+# Plot precipitation data
+ax1.plot(df['Year'], df['Precipitation'], color="blue", marker="*", markersize=8, label="Precipitation", linewidth=1)
+
+# Create a secondary y-axis for temperature data
+ax2 = ax1.twinx()
+ax2.plot(df['Year'], df['Temperature'], color="green", marker="o", markersize=6, label="Temperature", linewidth=1)
+
+# Fit a linear trendline to the temperature data
+z = np.polyfit(df['Year'], df['Temperature'], 1)
+p = np.poly1d(z)
+
+# Plot the trendline
+trendline = ax2.plot(df['Year'], p(df['Year']), color='lightgreen', linestyle='--', label='Trendline')
+
+# Display the trendline equation below the trendline
+equation = f'Trendline: y = {z[0]:.2f}x + {z[1]:.2f}'
+x_pos = df['Year'].iloc[-1]  # x position at the end of the trendline
+y_pos = p(df['Year'].iloc[-1])  # y position at the end of the trendline
+
+# Plot the equation below the trendline
+ax2.text(x_pos, y_pos - 1.7, equation, color='darkgreen', fontsize=10, ha='right', va='bottom')
+
+# Set axis labels
+ax1.set_ylabel("Precipitation (mm)", color="blue", fontsize=12)
+ax2.set_ylabel("Temperature (°C)", color="green", fontsize=12)
+ax1.set_xlabel("Years", fontsize=12)
+
+# Set axis limits
+ax1.set_ylim(0, 2800)
+ax2.set_ylim(-7, 0)
+ax1.set_xlim(1979, 2024)
+
+# Set tick parameters
+ax1.tick_params(axis='y', colors="blue")
+ax2.tick_params(axis='y', colors="green")
+
+# Add legends
+ax1.legend(loc="upper left", bbox_to_anchor=(0, 1))
+ax2.legend(loc="upper left", bbox_to_anchor=(0, 0.92))
+
+# Show the plot
+plt.show()
+
+#Export on device
+fig.tight_layout()
+fig.savefig("Prep and Temp.jpg")
