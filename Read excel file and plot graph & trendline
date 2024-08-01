@@ -54,4 +54,4 @@ plt.show()
 
 #Export on device
 fig.tight_layout()
-fig.savefig("Prep and Temp.jpg")
+fig.savefig("Prep and Temp.jpg",dpi = 600)
