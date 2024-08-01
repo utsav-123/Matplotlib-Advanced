@@ -24,4 +24,4 @@ ax2.legend(loc = "upper left",bbox_to_anchor=(0, 0.92))
 plt.show()
 
 fig.tight_layout()
-fig.savefig("Area Chart.jpg")
+fig.savefig("Area Chart.jpg",dpi = 600)
