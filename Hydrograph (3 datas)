@@ -20,6 +20,6 @@ plt.legend()
 plt.show()
 
 fig.tight_layout()
-fig.savefig("Dam Breach Hydrograph.jpg")
+fig.savefig("Dam Breach Hydrograph.jpg",dpi = 600)
 
 
