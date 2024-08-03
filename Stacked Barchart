@@ -1,0 +1,141 @@
+import matplotlib.pyplot as plt
+import numpy as np
+import matplotlib.ticker as ticker
+
+# Data
+a = ["Buildings", "Bridges", "Hydropower", "Roads (km)"]
+b = [65, 0, 0, 10.02]
+c = [162, 5, 2, 14.83]
+d = [122, 9, 5, 15.14]
+e = [117, 4, 0, 9.12]
+f = [42, 5, 0, 35.18]
+g = [76, 3, 1, 13.55]
+h = [153, 2, 0, 0.08]
+i = [91, 3, 1, 15.44]
+
+# Parameters
+width = 0.35  # Adjust width to fit all bars
+p = np.arange(len(a))
+
+# Plotting
+fig, ax1 = plt.subplots()
+
+# Plotting each bar on top of the previous one
+plt.bar(p, b, width, align="center", edgecolor="black", linewidth=1, label="Balefi")
+plt.bar(p, c, width, bottom=b, align="center", edgecolor="black", linewidth=1, label="Barhabise")
+plt.bar(p, d, width, bottom=np.array(b)+np.array(c), align="center", edgecolor="black", linewidth=1, label="Bhotekoshi")
+plt.bar(p, e, width, bottom=np.array(b)+np.array(c)+np.array(d), align="center", edgecolor="black", linewidth=1, label="SangachokGadhi")
+plt.bar(p, f, width, bottom=np.array(b)+np.array(c)+np.array(d)+np.array(e), align="center", edgecolor="black", linewidth=1, label="Nyalam")
+plt.bar(p, g, width, bottom=np.array(b)+np.array(c)+np.array(d)+np.array(e)+np.array(f), align="center", edgecolor="black", linewidth=1, label="Sunkoshi")
+plt.bar(p, h, width, bottom=np.array(b)+np.array(c)+np.array(d)+np.array(e)+np.array(f)+np.array(g), align="center", edgecolor="black", linewidth=1, label="Tripurasundari")
+plt.bar(p, i, width, bottom=np.array(b)+np.array(c)+np.array(d)+np.array(e)+np.array(f)+np.array(g)+np.array(h), align="center", edgecolor="black", linewidth=1, label="Zhangmu")
+
+# Adding labels only for the "Buildings" category inside the bars in white color
+datasets = [b, c, d, e, f, g, h, i]  # List of all datasets
+for i, _ in enumerate(b):
+    if a[i] == "Buildings":
+        cumulative_height = 0
+        for dataset in datasets:
+            height = dataset[i]
+            ax1.text(p[i], cumulative_height + height / 2, str(height), ha='center', va='center', fontsize=7, color='white')
+            cumulative_height += height
+
+
+# Labels and title
+plt.xlabel("Infrastructures", fontsize=9,weight = 'bold')
+plt.ylabel("Number", fontsize=9, weight = 'bold')
+ax1.set_ylim(0, 5200)
+plt.xticks(p, a, rotation=0, fontsize = 8)
+plt.yticks(np.arange(0, 5200, 200), fontsize = 8)  # Set y-axis intervals to 200
+
+# Set major ticks at intervals of 200 but only display every 500
+ax1.yaxis.set_major_locator(ticker.MultipleLocator(200))
+ax1.yaxis.set_major_formatter(ticker.FuncFormatter(lambda x, _: f'{int(x)}' if x % 500 == 0 else ''))
+
+plt.legend(ncol=1, loc='upper left', bbox_to_anchor=(1, 1), title="Legend",fontsize = 7)
+plt.show()
+
+# Save the figure
+fig.tight_layout()
+fig.savefig("Exposure_Stacked.jpg", dpi=600)
+
+
+
+
+
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Data
+a = ["Bridges", "Hydropower", "Roads (km)"]
+b = [10, 0, 10]
+c = [5, 2, 15]
+d = [6, 5, 15]
+e = [4, 10, 9]
+f = [10, 9, 35]
+g = [1, 0, 14]  
+h = [2, 0, 0]  
+i = [33, 1, 15] 
+
+# Parameters
+width = 0.35  # Adjust width to fit all bars
+p = np.arange(len(a))
+
+# Plotting
+fig, ax1 = plt.subplots()
+
+# Calculate cumulative heights for stacking
+bottoms = np.zeros(len(a))
+
+def add_texts(p, values, bottoms, width, ax):
+    for i, value in enumerate(values):
+        if value > 0:  # Display label only for positive values
+            # Format label based on the category
+            if a[i] in ["Bridges", "Hydropower"]:
+                label = f'{int(value)}'
+            else:  # "Roads (km)"
+                label = f'{value:.2f}'
+            ax.text(p[i], bottoms[i] + value / 2, label, ha='center', va='center', fontsize=7, color='white', weight = 'bold')
+        bottoms[i] += value
+        
+# Plotting each bar on top of the previous one
+bars1 = plt.bar(p, b, width, align="center", edgecolor="black", linewidth=1, label="Balefi")
+add_texts(p, b, bottoms, width, ax1)
+
+bars2 = plt.bar(p, c, width, bottom=bottoms, align="center", edgecolor="black", linewidth=1, label="Barhabise")
+add_texts(p, c, bottoms, width, ax1)
+
+bars3 = plt.bar(p, d, width, bottom=bottoms, align="center", edgecolor="black", linewidth=1, label="Bhotekoshi")
+add_texts(p, d, bottoms, width, ax1)
+
+bars4 = plt.bar(p, e, width, bottom=bottoms, align="center", edgecolor="black", linewidth=1, label="SangachokGadhi")
+add_texts(p, e, bottoms, width, ax1)
+
+bars5 = plt.bar(p, f, width, bottom=bottoms, align="center", edgecolor="black", linewidth=1, label="Nyalam")
+add_texts(p, f, bottoms, width, ax1)
+
+bars6 = plt.bar(p, g, width, bottom=bottoms, align="center", edgecolor="black", linewidth=1, label="Sunkoshi")
+add_texts(p, g, bottoms, width, ax1)
+
+bars7 = plt.bar(p, h, width, bottom=bottoms, align="center", edgecolor="black", linewidth=1, label="Tripurasundari")
+add_texts(p, h, bottoms, width, ax1)
+
+bars8 = plt.bar(p, i, width, bottom=bottoms, align="center", edgecolor="black", linewidth=1, label="Zhangmu")
+add_texts(p, i, bottoms, width, ax1)
+
+# Labels and title
+#plt.xlabel("Infrastructures", fontsize=12)
+plt.ylabel("Number", fontsize=10, weight = 'bold')
+ax1.set_ylim(0, 120)  # Adjusted y-axis limit to fit the data
+plt.xticks(p, a, rotation=0)
+plt.yticks(np.arange(0, 120, 10))  # Adjusted y-axis ticks
+
+# Legend
+#plt.legend(loc='upper left', bbox_to_anchor=(1, 1))
+
+plt.show()
+
+# Save the figure
+fig.tight_layout()
+fig.savefig("Exposure_Stacked_smallplot_label.jpg", dpi=600)
