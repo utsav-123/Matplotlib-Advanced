@@ -1,0 +1,36 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+fig, ax1 = plt.subplots(figsize =(10,7))
+
+# Read the data from Excel
+df = pd.read_excel("C:\\Users\\Dell\\Pq_Gyr_Dam_Hydrograph_Mod.xlsx", 'Poiqu_Hydrograph')
+print(df)
+
+plt.subplot(2,2,1)
+plt.plot(df['Time (Minutes)'],df['Poiq_100'], color = 'blue', label = "100% Dam Breach", linewidth = 1.5)
+plt.plot(df['Time (Minutes)'],df['Poiq_50'], linestyle = '--', color = 'orange', label = "50% Dam Breach", linewidth = 1.5)
+plt.plot(df['Time (Minutes)'],df['Poiq_25'],color = 'green', label = "25% Dam Breach", linewidth = 1.5)
+
+#plt.xlabel("Time (minutes)", fontsize = 12, loc = "right")
+plt.ylabel("Discharge(m³/s)", fontsize = 12, weight = "bold")
+
+df = pd.read_excel("C:\\Users\\Dell\\Pq_Gyr_Dam_Hydrograph_Mod.xlsx", 'Gyirong_Hydrograph')
+print(df)
+
+
+plt.subplot(2,2,2)
+plt.plot(df['Time (Minutes)'],df['Gyi_100'], color = 'blue', label = "100% Dam Breach", linewidth = 1.5)
+plt.plot(df['Time (Minutes)'],df['Gyi_50'], linestyle = '--', color = 'orange', label = "50% Dam Breach", linewidth = 1.5)
+plt.plot(df['Time (Minutes)'],df['Gyi_25'],color = 'green', label = "25% Dam Breach", linewidth = 1.5)
+
+#plt.xlabel("Time (minutes)", fontsize = 12 )
+#plt.ylabel("Discharge(m³/s)", fontsize = 12)
+
+fig.text(0.52, 0.46, 'Time (minutes)', ha='center', fontsize=12, weight = "bold")
+plt.legend(loc="center left", bbox_to_anchor=(0.52, 0.88))
+plt.show()
+
+fig.tight_layout()
+fig.savefig("Double Hydrograph.jpg", dpi = 600)
