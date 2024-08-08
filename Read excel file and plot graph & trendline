@@ -20,20 +20,27 @@ ax2.plot(df['Year'], df['Temperature'], color="green", marker="o", markersize=6,
 z = np.polyfit(df['Year'], df['Temperature'], 1)
 p = np.poly1d(z)
 
+# Calculate R^2
+y_pred = p(df['Year'])
+y_true = df['Temperature']
+ss_res = np.sum((y_true - y_pred) ** 2)
+ss_tot = np.sum((y_true - np.mean(y_true)) ** 2)
+r2 = 1 - (ss_res / ss_tot)
+
 # Plot the trendline
 trendline = ax2.plot(df['Year'], p(df['Year']), color='lightgreen', linestyle='--', label='Trendline')
 
 # Display the trendline equation below the trendline
-equation = f'Trendline: y = {z[0]:.2f}x + {z[1]:.2f}'
+equation = f' y = {z[0]:.2f}x + {z[1]:.2f}\n $R^2$ = {r2:.2f}'
 x_pos = df['Year'].iloc[-1]  # x position at the end of the trendline
 y_pos = p(df['Year'].iloc[-1])  # y position at the end of the trendline
 
 # Plot the equation below the trendline
-ax2.text(x_pos, y_pos - 1.7, equation, color='darkgreen', fontsize=10, ha='right', va='bottom')
+ax2.text(x_pos, y_pos - 2, equation, color='darkgreen', fontsize=10, ha='right', va='bottom')
 
 # Set axis labels
-ax1.set_ylabel("Precipitation (mm)", color="blue", fontsize=12)
-ax2.set_ylabel("Temperature (°C)", color="green", fontsize=12)
+ax1.set_ylabel("Precipitation (mm)", color="black", fontsize=12)
+ax2.set_ylabel("Temperature (°C)", color="black", fontsize=12)
 ax1.set_xlabel("Years", fontsize=12)
 
 # Set axis limits
@@ -42,16 +49,16 @@ ax2.set_ylim(-7, 0)
 ax1.set_xlim(1979, 2024)
 
 # Set tick parameters
-ax1.tick_params(axis='y', colors="blue")
-ax2.tick_params(axis='y', colors="green")
+ax1.tick_params(axis='y', colors="black")
+ax2.tick_params(axis='y', colors="black")
 
 # Add legends
-ax1.legend(loc="upper left", bbox_to_anchor=(0, 1))
-ax2.legend(loc="upper left", bbox_to_anchor=(0, 0.92))
+ax1.legend(loc="upper left", bbox_to_anchor=(0, 1), fontsize = 8)
+ax2.legend(loc="upper left", bbox_to_anchor=(0, 0.92), fontsize = 8)
 
 # Show the plot
 plt.show()
 
 #Export on device
 fig.tight_layout()
-fig.savefig("Prep and Temp.jpg",dpi = 600)
+fig.savefig("Prep and Temp.jpg", dpi = 600)
