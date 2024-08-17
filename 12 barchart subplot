@@ -1,0 +1,67 @@
+import matplotlib.pyplot as plt
+
+# Example x and y data for each bar chart
+x_data = [
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"],
+    ["Annual","Pre","Monsoon","Post","Dry"]
+]
+
+y_data = [
+    [2.031,0.146,5.188,2.172,-0.0317],
+    [-0.0438,-0.0489,-0.0636,-0.0274,-0.0155],
+    [-0.065,-0.0072,-0.1758,-0.0512,-0.00983],
+    [-0.006,0.0271,-0.01086,-0.0172,-0.00683],
+    [0.0095,0.0398,0.0163,0.01479,-0.0059],
+    [-0.0328,0.01228,-0.10714,-0.01037,-0.01031],
+    [-0.0385,0.0209,-0.07537,-0.0449,-0.01074],
+    [-0.09236,-0.02075,-0.21644,-0.0826,-0.01538],
+    [-0.0444,-0.02334,-0.1094,-0.024,-0.01458],
+    [-0.00436,-0.00664,-0.004953,0.00355,-0.0138],
+    [0.02503,0.031,0.01294,0.02856,0.03072],
+    [0.0142,0.00898,0.0239,0.0168,0.0142]
+]
+
+# Manually define colors for each bar in each bar chart
+colors = [
+    ["Blue", "LightBlue","Blue","Blue","Grey"],   # Colors for chart 1
+    ["Crimson", "LightPink","LightPink","LightPink","Crimson"],  # Colors for chart 2
+    ["Crimson", "Grey","Crimson","LightPink","Crimson"], # Colors for chart 3
+    ["Grey", "LightBlue","Grey","Grey","LightPink"],    # Colors for chart 4
+    ["Grey", "LightBlue","Grey","Grey","LightPink"], # Colors for chart 5
+    ['LightPink', 'Grey', 'LightPink', 'Grey', 'Crimson'], # Colors for chart 6
+    ['LightPink', 'Grey', 'LightPink', 'LightPink', 'Crimson'], # Colors for chart 7
+    ['Crimson', 'Grey', 'Crimson', 'LightPink', 'Crimson'],  # Colors for chart 8
+    ['Crimson', 'LightPink', 'Crimson', 'LightPink', 'Crimson'], # Colors for chart 9
+    ['Grey', 'Grey', 'Grey', 'Grey', 'LightPink'], # Colors for chart 10
+    ['Blue', 'Lightblue', 'LightBlue', 'Blue', 'Blue'],# Colors for chart 11
+    ['LightBlue', 'LightBlue', 'LightBlue', 'LightBlue', 'Grey'] # Colors for chart 12
+]
+
+# Create subplots
+fig, axes = plt.subplots(nrows=4, ncols=3, figsize=(15, 10))
+
+# Flatten axes array for easy iteration
+axes = axes.flatten()
+
+# Plotting each bar chart with manually assigned colors
+for i in range(12):
+    axes[i].bar(x_data[i], y_data[i], color=colors[i])
+    axes[i].set_title(f'Chart {i+1}')
+    axes[i].axhline(0, color='black', linewidth=1)  # Add a black line at y=0
+    
+
+# Adjust the layout to prevent overlapping
+plt.tight_layout()
+
+# Display the plots
+plt.show()
