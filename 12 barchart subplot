@@ -47,6 +47,13 @@ colors = [
     ['LightBlue', 'LightBlue', 'LightBlue', 'LightBlue', 'Grey'] # Colors for chart 12
 ]
 
+# Titles for each subplot (updated with your provided names)
+titles = [
+    "795D", "1406P", "1407P", "1408P", "1409P", 
+    "1410P", "1415P", "1416P", "1419P", 
+    "1407T", "1416T", "1421T"
+]
+
 # Create subplots
 fig, axes = plt.subplots(nrows=4, ncols=3, figsize=(15, 10))
 
@@ -56,12 +63,23 @@ axes = axes.flatten()
 # Plotting each bar chart with manually assigned colors
 for i in range(12):
     axes[i].bar(x_data[i], y_data[i], color=colors[i])
-    axes[i].set_title(f'Chart {i+1}')
+    axes[i].set_title(titles[i], fontsize = 10, weight = "bold")  # Assign custom titles
     axes[i].axhline(0, color='black', linewidth=1)  # Add a black line at y=0
     
+# Custom legends
+custom_colors = ['Blue', 'LightBlue', 'Crimson', 'LightPink', 'Grey']
+legend_labels = ['Significant Increasing', 'Non-Significant Increasing', 'Significant Decreasing', 'Non-Significant Decreasing', 'No Trend']
+
+# Add custom legends
+fig.legend(handles=[plt.Line2D([0], [0], color=color, lw=4) for color in custom_colors],
+           labels=legend_labels, loc='lower center', ncol=5, fontsize=10)
 
 # Adjust the layout to prevent overlapping
-plt.tight_layout()
+plt.tight_layout(rect=[0, 0.05, 1, 1])  # Adjust rect to make room for the legend
+
 
 # Display the plots
 plt.show()
+
+# Save the plots
+fig.savefig("Trend Summary.jpg", dpi = 600)
