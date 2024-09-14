@@ -1,0 +1,55 @@
+import matplotlib.pyplot as plt
+import pandas as pd
+import numpy as np
+
+# Read the data from Excel
+df = pd.read_excel("C:\\Users\\Dell\\OneDrive\\Documents\\calVSobs.xlsx", 'Sheet2')
+print(df)
+
+# Create the figure and axis objects
+fig, ax1 = plt.subplots()
+
+# Convert 'Date' column to datetime format
+df['Date'] = pd.to_datetime(df['Date'])
+
+# Calculate padding for the x-axis
+start_date = df['Date'].min() - pd.DateOffset(months=6)
+end_date = df['Date'].max() + pd.DateOffset(months=6)
+
+# Plot observed data
+ax1.plot(df['Date'], df['Obs'], color="blue", label="Observed", linewidth=1)
+
+# Plot simulated data
+ax1.plot(df['Date'], df['Sim'], color="red", label="Simulated", linewidth=1)
+
+# Set axis limits
+ax1.set_ylim(0, 600)
+ax1.set_xlim(start_date, end_date)
+
+# Set tick parameters with custom font size
+ax1.tick_params(axis='x', labelsize=7)
+ax1.tick_params(axis='y', labelsize=7)
+
+# Customize x-axis ticks and labels with a gap of two years
+ax1.set_xticks(pd.date_range(start=start_date, end=end_date, freq='2YS'))
+ax1.set_xticklabels(pd.date_range(start=start_date, end=end_date, freq='2YS').strftime('%Y'))
+
+# Add a vertical line at the beginning of 2003
+ax1.axvline(pd.Timestamp('2003-01-01'), color='black', linestyle='--', linewidth=1)
+
+# Add text annotations
+ax1.text(pd.Timestamp('1997-06-01'), 525, 'Calibration', fontsize=8, color='black')
+ax1.text(pd.Timestamp('2004-01-01'), 525, 'Validation', fontsize=8, color='black')
+
+# Set axis labels
+ax1.set_ylabel("Discharge(m³/s)", color="black", fontsize=8)
+ax1.set_xlabel("Year", fontsize=8)
+
+# Add legends
+ax1.legend(loc="upper left", bbox_to_anchor=(0, 1), fontsize = 7)
+
+# Show the plot
+plt.show()
+
+fig.tight_layout()
+fig.savefig("Observed and Simulated Discharge Hydrograph.jpg", dpi = 600)
