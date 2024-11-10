@@ -42,45 +42,28 @@ pbias = {
     '1421_Tmin': [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
 }
 
-r2 = {
-    'GCM': ['ACCESS-CM2', 'ACCESS-ESM1-5', 'BCC-CSM2-MR', 'CanESM5', 'EC-Earth3', 'EC-Earth3-Veg', 'INM-CM4-8',
-            'INM-CM5-0', 'MPI-ESM1-2-HR', 'MPI-ESM1-2-LR', 'MRI-ESM2-0', 'NORESM2-LM', 'NorESM2-MM'],
-    '1406_PCP': [0.425142, 0.545758, 0.624678, 0.372091, 0.505766, 0.379771, 0.424159, 0.441438, 0.546810, 0.497960, 0.499751, 0.475969, 0.543524],
-    '1407_PCP': [0.419858, 0.506287, 0.610558, 0.366646, 0.467979, 0.499225, 0.477973, 0.413011, 0.510143, 0.488287, 0.472307, 0.416879, 0.527619],
-    '1408_PCP': [0.432653, 0.537401, 0.559381, 0.353914, 0.538197, 0.527556, 0.443980, 0.415896, 0.597370, 0.524151, 0.446459, 0.420885, 0.605122],
-    '1409_PCP': [0.486478, 0.584802, 0.645383, 0.356717, 0.606516, 0.589931, 0.435849, 0.446059, 0.633120, 0.581764, 0.508554, 0.493627, 0.657081],
-    '1410_PCP': [0.502711, 0.619542, 0.696367, 0.419056, 0.588262, 0.602324, 0.477464, 0.478700, 0.655634, 0.609156, 0.589133, 0.507013, 0.636414],
-    '1415_PCP': [0.465872, 0.566634, 0.626020, 0.357902, 0.565366, 0.591694, 0.478981, 0.450217, 0.621235, 0.584073, 0.523681, 0.491504, 0.635819],
-    '1416_PCP': [0.485185, 0.598976, 0.666496, 0.411693, 0.579970, 0.591799, 0.477467, 0.475007, 0.643902, 0.604105, 0.557978, 0.492742, 0.634798],
-    '1419_PCP': [0.428828, 0.534476, 0.615524, 0.341634, 0.480359, 0.406169, 0.420313, 0.467102, 0.574151, 0.528329, 0.494744, 0.461220, 0.575794],
-    '1407_Tmax': [0.832073, 0.838457, 0.799358, 0.761469, 0.778696, 0.777504, 0.760651, 0.776056, 0.824845, 0.750875, 0.792547, 0.835181, 0.800533],
-    '1407_Tmin': [0.843242, 0.849410, 0.820941, 0.811618, 0.822165, 0.856614, 0.823550, 0.868731, 0.860703, 0.818404, 0.852981, 0.855559, 0.868765],
-    '1416_Tmax': [0.855754, 0.840915, 0.839572, 0.771901, 0.788947, 0.773553, 0.782776, 0.809601, 0.843665, 0.773582, 0.793429, 0.834022, 0.831743],
-    '1416_Tmin': [0.885981, 0.892960, 0.868245, 0.869853, 0.871538, 0.892784, 0.870585, 0.901501, 0.883489, 0.877457, 0.883816, 0.887863, 0.908634],
-    '1421_Tmax': [0.845832, 0.839454, 0.793397, 0.776046, 0.754606, 0.759830, 0.769145, 0.789289, 0.841490, 0.766493, 0.812893, 0.824252, 0.813932],
-    '1421_Tmin': [0.909354, 0.904949, 0.899421, 0.901708, 0.899710, 0.911073, 0.896977, 0.915056, 0.907243, 0.892898, 0.905329, 0.905013, 0.920512]
-}
+# DataFrames for each dictionary
+nse_df = pd.DataFrame(nse).set_index('GCM')
+pbias_df = pd.DataFrame(pbias).set_index('GCM')
 
-# Create DataFrames from the data
-nse_df = pd.DataFrame(nse)
-pbias_df = pd.DataFrame(pbias)
-r2_df = pd.DataFrame(r2)
+# Function to create a heatmap
+def create_heatmap(data, ax, title, vmin, vmax):
+    sns.heatmap(data, cmap="RdYlBu", annot=False, fmt='.2f', ax=ax, vmin=vmin, vmax=vmax, cbar_kws={'label': 'Value'},linewidths=0.5, linecolor='black')
+    ax.set_title(title)
+    ax.set_xlabel('Stations')
+    ax.set_ylabel('GCMs')
 
-# Create subplots
+# Plotting
 fig, axes = plt.subplots(1, 3, figsize=(18, 6))
 
-# Function to create heatmaps
-def create_heatmap(df, title, ax):
-    sns.heatmap(df.set_index('GCM').T, annot=False, fmt='.2f', cmap='RdYlBu', ax=ax, linewidths=0.5, linecolor='black')
-    ax.set_title(title)
-    ax.set_xlabel('GCM')
-    ax.set_ylabel('Stations')
+# NSE heatmap
+create_heatmap(nse_df.transpose(), axes[0], 'NSE', vmin=-0.3, vmax=1)
 
-# Plot heatmaps for each metric
-create_heatmap(nse_df, 'NSE', axes[0])
-create_heatmap(pbias_df, 'PBIAS', axes[1])
-create_heatmap(r2_df, 'R2', axes[2])
+# PBIAS heatmap
+create_heatmap(pbias_df.transpose(), axes[1], 'PBIAS', vmin=-30, vmax=30)
 
-# Adjust layout to avoid overlap
+# R2 heatmap (assuming you have r2 values defined similarly, using the same range for now)
+create_heatmap(nse_df.transpose(), axes[2], 'R2', vmin=0, vmax=1)
+
 plt.tight_layout()
 plt.show()
