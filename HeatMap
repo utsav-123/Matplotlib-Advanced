@@ -48,10 +48,10 @@ pbias_df = pd.DataFrame(pbias).set_index('GCM')
 
 # Function to create a heatmap
 def create_heatmap(data, ax, title, vmin, vmax):
-    sns.heatmap(data, cmap="RdYlBu", annot=False, fmt='.2f', ax=ax, vmin=vmin, vmax=vmax, cbar_kws={'label': 'Value'},linewidths=0.5, linecolor='black')
+    sns.heatmap(data, cmap="RdYlBu", annot=False, fmt='.2f', ax=ax, vmin=vmin, vmax=vmax,linewidths=0.5, linecolor='black')
     ax.set_title(title)
-    ax.set_xlabel('Stations')
-    ax.set_ylabel('GCMs')
+    ax.set_xlabel('GCMs')
+    ax.set_ylabel('Stations')
 
 # Plotting
 fig, axes = plt.subplots(1, 3, figsize=(18, 6))
