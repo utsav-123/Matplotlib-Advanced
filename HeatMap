@@ -64,6 +64,7 @@ r2 = {
 # DataFrames for each dictionary
 nse_df = pd.DataFrame(nse).set_index('GCM')
 pbias_df = pd.DataFrame(pbias).set_index('GCM')
+r2_df = pd.DataFrame(r2).set_index('GCM')
 
 # Function to create a heatmap
 def create_heatmap(data, ax, title, vmin, vmax):
@@ -82,7 +83,7 @@ create_heatmap(nse_df.transpose(), axes[0], 'NSE', vmin=-0.3, vmax=1)
 create_heatmap(pbias_df.transpose(), axes[1], 'PBIAS', vmin=-30, vmax=30)
 
 # R2 heatmap (assuming you have r2 values defined similarly, using the same range for now)
-create_heatmap(nse_df.transpose(), axes[2], 'R2', vmin=0, vmax=1)
+create_heatmap(r2_df.transpose(), axes[2], 'R2', vmin=0, vmax=1)
 
 plt.tight_layout()
 plt.show()
