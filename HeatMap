@@ -61,29 +61,100 @@ r2 = {
     '1421_Tmin': [0.909354, 0.904949, 0.899421, 0.901708, 0.899710, 0.911073, 0.896977, 0.915056, 0.907243, 0.892898, 0.905329, 0.905013, 0.920512]
 }
 
+
+# Rating function for each metric
+def rate_nse(nse):
+    if nse >= 0.75:
+        return 5
+    elif nse >= 0.5:
+        return 4
+    elif nse >= 0.25:
+        return 3
+    elif nse >= 0:
+        return 2
+    else:
+        return 1
+
+def rate_pbias(pbias):
+    if -10 <= pbias <= 10:
+        return 5
+    elif -20 <= pbias < -10 or 10 < pbias <= 20:
+        return 4
+    elif -30 <= pbias < -20 or 20 < pbias <= 30:
+        return 3
+    elif -40 <= pbias < -30 or 30 < pbias <= 40:
+        return 2
+    else:
+        return 1
+
+def rate_r2(r2):
+    if r2 > 0.90:
+        return 5
+    elif r2 >= 0.80:
+        return 4
+    elif r2 >= 0.70:
+        return 3
+    elif r2 >= 0.50:
+        return 2
+    else:
+        return 1
+
 # DataFrames for each dictionary
 nse_df = pd.DataFrame(nse).set_index('GCM')
 pbias_df = pd.DataFrame(pbias).set_index('GCM')
 r2_df = pd.DataFrame(r2).set_index('GCM')
+# Create performance rating DataFrame
+performance_rating = pd.DataFrame(index=nse_df.index)
+
+for station in nse_df.columns:
+    # Calculate performance rating for each metric (NSE, PBIAS, R2) and average them
+    performance_rating[station] = (
+        nse_df[station].apply(rate_nse) +
+        pbias_df[station].apply(rate_pbias) +
+        r2_df[station].apply(rate_r2)
+    ) / 3  # Average the ratings
 
 # Function to create a heatmap
 def create_heatmap(data, ax, title, vmin, vmax):
     sns.heatmap(data, cmap="RdYlBu", annot=False, fmt='.2f', ax=ax, vmin=vmin, vmax=vmax,linewidths=0.5, linecolor='black')
-    ax.set_title(title)
-    ax.set_xlabel('GCMs')
-    ax.set_ylabel('Stations')
-
+    ax.set_title(title, fontsize=14)
+    ax.set_xlabel('GCMs', fontsize=9)
+    ax.set_ylabel('Stations', fontsize=9)
+    
 # Plotting
-fig, axes = plt.subplots(1, 3, figsize=(18, 6))
+fig, axes = plt.subplots(2, 2, figsize=(12, 12))
+
+# Flatten axes array for easy indexing
+axes = axes.flatten()
 
 # NSE heatmap
-create_heatmap(nse_df.transpose(), axes[0], 'NSE', vmin=-0.3, vmax=1)
+create_heatmap(nse_df.transpose(),axes[0], 'NSE', vmin=-0.3, vmax=1)
 
 # PBIAS heatmap
 create_heatmap(pbias_df.transpose(), axes[1], 'PBIAS', vmin=-30, vmax=30)
 
-# R2 heatmap (assuming you have r2 values defined similarly, using the same range for now)
+# R2 heatmap
 create_heatmap(r2_df.transpose(), axes[2], 'R2', vmin=0, vmax=1)
 
+# Performance rating heatmap
+create_heatmap(performance_rating.transpose(), axes[3], 'Performance Rating', vmin=1, vmax=5)
+
+# Adjust the spacing between subplots
+plt.subplots_adjust(wspace=1.2, hspace=3)
+
+# Visualize the plot
 plt.tight_layout()
 plt.show()
+
+# Save the plots
+fig.savefig("Rating Summary.png", dpi = 600)
+
+# Compute the average performance rating for each GCM model across all stations
+gcm_performance_avg = performance_rating.mean(axis=1)
+
+# Sort the GCM models by their average performance rating in descending order
+top_6_gcm = gcm_performance_avg.sort_values(ascending=False).head(6)
+
+# Display the top 6 best-performing GCM models
+print("Top 6 Best Performing GCM Models:")
+print(top_6_gcm)
