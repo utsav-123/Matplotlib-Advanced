@@ -64,13 +64,13 @@ r2 = {
 
 # Rating function for each metric
 def rate_nse(nse):
-    if nse >= 0.75:
+    if 0.75 < nse <= 1:
         return 5
-    elif nse >= 0.5:
+    elif 0.65 < nse <= 0.75:
         return 4
-    elif nse >= 0.25:
+    elif 0.5 < nse <= 0.65:
         return 3
-    elif nse >= 0:
+    elif 0.4 < nse <= 0.5:
         return 2
     else:
         return 1
@@ -78,23 +78,23 @@ def rate_nse(nse):
 def rate_pbias(pbias):
     if -10 <= pbias <= 10:
         return 5
-    elif -20 <= pbias < -10 or 10 < pbias <= 20:
+    elif -10 <= pbias < -15 or 10 < pbias <= 15:
         return 4
-    elif -30 <= pbias < -20 or 20 < pbias <= 30:
+    elif -15 <= pbias < -25 or 15 < pbias <= 25:
         return 3
-    elif -40 <= pbias < -30 or 30 < pbias <= 40:
+    elif -25 <= pbias < -35 or 25 < pbias <= 35:
         return 2
     else:
         return 1
 
 def rate_r2(r2):
-    if r2 > 0.90:
+    if r2 > 0.50:
         return 5
-    elif r2 >= 0.80:
+    elif 0.50 < r2 <= 0.60:
         return 4
-    elif r2 >= 0.70:
+    elif 0.60 < r2 <= 0.70:
         return 3
-    elif r2 >= 0.50:
+    elif 0.70 < r2 <= 0.80:
         return 2
     else:
         return 1
@@ -149,7 +149,7 @@ create_heatmap(r2_df.transpose(), axes[2], 'R2', vmin=0, vmax=1)
 create_heatmap(performance_rating.transpose(), axes[3], 'Performance Rating', vmin=1, vmax=5)
 
 # Adjust the spacing between subplots
-plt.subplots_adjust(wspace=1.2, hspace=4)
+plt.subplots_adjust(wspace=2, hspace=4)
 
 # Visualize the plot
 plt.tight_layout()
