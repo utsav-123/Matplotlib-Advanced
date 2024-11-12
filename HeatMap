@@ -103,6 +103,7 @@ def rate_r2(r2):
 nse_df = pd.DataFrame(nse).set_index('GCM')
 pbias_df = pd.DataFrame(pbias).set_index('GCM')
 r2_df = pd.DataFrame(r2).set_index('GCM')
+
 # Create performance rating DataFrame
 performance_rating = pd.DataFrame(index=nse_df.index)
 
@@ -114,13 +115,21 @@ for station in nse_df.columns:
         r2_df[station].apply(rate_r2)
     ) / 3  # Average the ratings
 
+# Compute the average performance rating for each GCM model across all stations
+gcm_performance_avg = performance_rating.mean(axis=1)
+
+# Sort the GCM models by their average performance rating in descending order
+performance_rating = performance_rating.loc[gcm_performance_avg.sort_values(ascending=False).index]
+
 # Function to create a heatmap
 def create_heatmap(data, ax, title, vmin, vmax):
-    sns.heatmap(data, cmap="RdYlBu", annot=False, fmt='.2f', ax=ax, vmin=vmin, vmax=vmax,linewidths=0.5, linecolor='black')
-    ax.set_title(title, fontsize=14)
-    ax.set_xlabel('GCMs', fontsize=9)
-    ax.set_ylabel('Stations', fontsize=9)
-    
+    sns.heatmap(data, cmap="RdYlBu", annot=False, fmt='.2f', ax=ax, vmin=vmin, vmax=vmax, linewidths=0.5, linecolor='black')
+    ax.set_title(title, fontsize=16,fontweight='bold')
+    ax.set_xlabel('', fontsize=14, fontweight='bold') # Remove x-axis index label
+    ax.set_ylabel('', fontsize=14, fontweight='bold') # Set y-axis font size and weight 
+    ax.tick_params(axis='x', labelsize=14) # Increase font size  
+    ax.tick_params(axis='y', labelsize=14)
+
 # Plotting
 fig, axes = plt.subplots(2, 2, figsize=(12, 12))
 
@@ -128,7 +137,7 @@ fig, axes = plt.subplots(2, 2, figsize=(12, 12))
 axes = axes.flatten()
 
 # NSE heatmap
-create_heatmap(nse_df.transpose(),axes[0], 'NSE', vmin=-0.3, vmax=1)
+create_heatmap(nse_df.transpose(), axes[0], 'NSE', vmin=-0.3, vmax=1)
 
 # PBIAS heatmap
 create_heatmap(pbias_df.transpose(), axes[1], 'PBIAS', vmin=-30, vmax=30)
@@ -136,25 +145,21 @@ create_heatmap(pbias_df.transpose(), axes[1], 'PBIAS', vmin=-30, vmax=30)
 # R2 heatmap
 create_heatmap(r2_df.transpose(), axes[2], 'R2', vmin=0, vmax=1)
 
-# Performance rating heatmap
+# Performance rating heatmap with GCMs ranked in descending order
 create_heatmap(performance_rating.transpose(), axes[3], 'Performance Rating', vmin=1, vmax=5)
 
 # Adjust the spacing between subplots
-plt.subplots_adjust(wspace=1.2, hspace=3)
+plt.subplots_adjust(wspace=1.2, hspace=4)
 
 # Visualize the plot
 plt.tight_layout()
 plt.show()
 
 # Save the plots
-fig.savefig("Rating Summary.png", dpi = 600)
+fig.savefig("Rating_Summary.jpg", dpi=600)
 
-# Compute the average performance rating for each GCM model across all stations
-gcm_performance_avg = performance_rating.mean(axis=1)
+# Display the top 13 best-performing GCM models
+top_13_gcm = gcm_performance_avg.sort_values(ascending=False).head(13)
+print("Top 13 Best Performing GCM Models:")
+print(top_13_gcm)
 
-# Sort the GCM models by their average performance rating in descending order
-top_6_gcm = gcm_performance_avg.sort_values(ascending=False).head(6)
-
-# Display the top 6 best-performing GCM models
-print("Top 6 Best Performing GCM Models:")
-print(top_6_gcm)
