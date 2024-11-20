@@ -1,0 +1,71 @@
+import matplotlib.pyplot as plt
+import numpy as np
+from scipy import interpolate
+
+# Corrected data for stations and original elevations
+sites = {
+    "Site 1": {"stations": np.arange(0, 1100, 100), "elevations": [3560, 3540, 3532, 3516, 3515, 3515, 3520, 3528, 3532, 3542, 3556]},
+    "Site 2": {"stations": np.arange(0, 800, 100), "elevations": [2725, 2640, 2590, 2560, 2570, 2610, 2650, 2690]},
+    "Site 3": {"stations": np.arange(0, 800, 100), "elevations": [2350, 2260, 2110, 2100, 2120, 2150, 2230, 2300]},
+    "Site 4": {"stations": np.arange(0, 900, 100), "elevations": [2050, 2000, 1945, 1870, 1810, 1850, 1880, 1910, 1980]},
+    "Site 5": {"stations": np.arange(0, 500, 50), "elevations": [1486, 1460, 1436, 1428, 1430, 1434,1436,1442,1450,1470]},
+    "Site 6": {"stations": np.arange(0, 350, 50), "elevations": [1400, 1330, 1313, 1320, 1360, 1375, 1385]},
+}
+
+# Data for scenarios
+scenario_elevations = {
+    "Sc-1 (10 m)": [3526, 2600, 2130, 1815, None, None],
+    "Sc-2 (30 m)": [3532, 2630, 2160, 1860, 1444, 1326],
+    "Sc-3 (50 m)": [3540, 2645, 2180, 1880, 1462, 1340],
+}
+
+# Settlement data with updated station positions
+settlement_data = {
+    "Site 1": {"station": 650, "settlement": 3525},
+    "Site 2": {"station": 480, "settlement": 2601},
+    "Site 3": {"station": 310, "settlement": 2105},
+    "Site 4": {"station": 533, "settlement": 1861},
+    "Site 5": {"station": 300, "settlement": 1436},
+    "Site 6": {"station": 187, "settlement": 1351},
+}
+
+# Plotting
+fig, axs = plt.subplots(2, 3, figsize=(20, 10))
+axs = axs.flatten()
+
+colors = ["green", "blue", "red"]  # Colors for the scenarios
+labels = list(scenario_elevations.keys())
+
+for i, (site, data) in enumerate(sites.items()):
+    # Interpolate the terrain to create a smooth curve
+    f = interpolate.InterpolatedUnivariateSpline(data["stations"], data["elevations"], k=3)  # Cubic spline
+    fine_stations = np.linspace(data["stations"][0], data["stations"][-1], 500)  # Finer stations for smooth curve
+    smooth_elevations = f(fine_stations)  # Get smooth terrain elevations
+    
+    # Plot smooth terrain elevations
+    axs[i].plot(fine_stations, smooth_elevations, label="Terrain", color="black")
+    
+    # Plot straight lines for each scenario
+    for j, label in enumerate(labels):
+        elevation = scenario_elevations[label][i]
+        if elevation is not None:
+            axs[i].hlines(y=elevation, xmin=data["stations"][0], xmax=data["stations"][-1], 
+                          colors=colors[j], linestyles='--', label=label)
+
+    # Plot settlement as a bright pink point at the specific station position
+    settlement = settlement_data[site]["settlement"]
+    settlement_station = settlement_data[site]["station"]
+    axs[i].plot(settlement_station, settlement, marker="o", markersize=8, color="magenta", label="Settlement")
+
+    axs[i].set_title(site, fontsize = '16', weight = 'bold')
+    axs[i].set_xlabel("Station (m)", fontsize = '12')
+    axs[i].set_ylabel("Elevation (m)", fontsize = '12')
+
+# Move the legend to the right side of Site 3 subplot
+axs[2].legend(loc='upper left', bbox_to_anchor=(1.05, 1), fontsize='12')
+
+plt.tight_layout()
+plt.show()
+
+# Save the plot as jpg
+fig.savefig("elevation_plot.jpg", dpi=600, bbox_inches="tight")
