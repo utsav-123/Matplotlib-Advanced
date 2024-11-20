@@ -48,9 +48,13 @@ for i, (site, data) in enumerate(sites.items()):
     for j, label in enumerate(labels):
         elevation = scenario_elevations[label][i]
         if elevation is not None:
-            axs[i].hlines(y=elevation, xmin=data["stations"][0], xmax=data["stations"][-1], 
-                          colors=colors[j], linestyles='--', label=label)
-
+            # Find the intersection points of the scenario elevation with the terrain
+            intersection_indices = np.where(smooth_elevations < elevation)[0]
+            if intersection_indices.size > 1:
+                xmin = fine_stations[intersection_indices[0]]
+                xmax = fine_stations[intersection_indices[-1]]
+                axs[i].hlines(y=elevation, xmin=xmin, xmax=xmax, colors=colors[j], linestyles='--', label=label)
+                
     # Plot settlement as a bright pink point at the specific station position
     settlement = settlement_data[site]["settlement"]
     settlement_station = settlement_data[site]["station"]
