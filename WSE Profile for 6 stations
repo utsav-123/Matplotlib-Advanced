@@ -2,7 +2,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import interpolate
 
-# Corrected data for stations and original elevations
 sites = {
     "Site 1": {"stations": np.arange(0, 1100, 100), "elevations": [3560, 3540, 3532, 3516, 3515, 3515, 3520, 3528, 3532, 3542, 3556]},
     "Site 2": {"stations": np.arange(0, 800, 100), "elevations": [2725, 2640, 2590, 2560, 2570, 2610, 2650, 2690]},
@@ -57,12 +56,16 @@ for i, (site, data) in enumerate(sites.items()):
     settlement_station = settlement_data[site]["station"]
     axs[i].plot(settlement_station, settlement, marker="o", markersize=8, color="magenta", label="Settlement")
 
-    axs[i].set_title(site, fontsize = '16', weight = 'bold')
-    axs[i].set_xlabel("Station (m)", fontsize = '12')
-    axs[i].set_ylabel("Elevation (m)", fontsize = '12')
+    axs[i].set_title(site, fontsize = '18', weight = 'bold')
+    axs[i].set_xlabel("Station (m)", fontsize = '16')
+    axs[i].set_ylabel("Elevation (m)", fontsize = '16')
+
+# Increase the size of the tick labels for both axes
+    axs[i].tick_params(axis='x', labelsize=14)  # Set fontsize for x-axis ticks
+    axs[i].tick_params(axis='y', labelsize=14)  # Set fontsize for y-axis ticks
 
 # Move the legend to the right side of Site 3 subplot
-axs[2].legend(loc='upper left', bbox_to_anchor=(1.05, 1), fontsize='12')
+axs[2].legend(loc='upper left', bbox_to_anchor=(1.05, 1), fontsize='16')
 
 plt.tight_layout()
 plt.show()
