@@ -1,0 +1,39 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+import numpy as np
+
+# Load the Excel file
+file_path = "C:\\SSP 245\\Precipitation\\SSP245_Preci_Summary.xlsx"
+data = pd.read_excel(file_path)
+
+# Set up the figure and axis
+fig, ax = plt.subplots(figsize=(12, 6))
+
+# Plot GCMs as a grouped bar chart
+x = np.arange(len(data['Month']))  # Positions for bars
+width = 0.1  # Width of each bar
+for i, column in enumerate(data.columns[1:-1]):  # Exclude 'Month' and 'Ensemble'
+    ax.bar(x + i * width, data[column], width, label=column)
+
+# Plot Ensemble as a line chart
+ax.plot(x + width * (len(data.columns[1:-1]) / 2 - 0.5), data['Ensemble'], color='black', marker='o', label='Ensemble', linewidth=2)
+
+# Customize the plot
+plt.title("SSP 245", fontsize=14)
+ax.set_xlabel("Month", fontsize=14)
+ax.set_ylabel("Precipitation (mm)", fontsize=14)
+ax.set_xticks(x + width * (len(data.columns[1:-1]) / 2 - 0.5))  # Center tick labels
+ax.set_xticklabels(data['Month'], fontsize=12)
+
+# Combine legends and position them on the right
+ax.legend( loc="upper right", fontsize=10)
+
+# Save the plot as a JPG file
+output_path = "C:\\Kankai River Basin\\Future Data Graph for Paper\\SSP 245\\Precipitation\\SSP245_Preci_Combined.jpg"
+plt.tight_layout()
+plt.savefig(output_path, dpi=600)
+
+# Show the plot
+plt.show()
+
+print(f"Combined bar and line chart successfully saved at {output_path}")
