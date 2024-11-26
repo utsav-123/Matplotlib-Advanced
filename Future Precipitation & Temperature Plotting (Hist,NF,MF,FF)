@@ -2,8 +2,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 # File paths
-file_path_1 = 'C:\\Kankai River Basin\\Future Data Graph for Paper\\Results Complied for Graph\\SSp245_Preci_HisNFMFFF.xlsx'  # Replace with the correct path
-file_path_2 = 'C:\\Kankai River Basin\\Future Data Graph for Paper\\Results Complied for Graph\\SSp585_Preci_HisNFMFFF.xlsx'  # Replace with the correct path
+file_path_1 = 'C:\\SSp245_Preci_HisNFMFFF.xlsx'  # Replace with the correct path
+file_path_2 = 'C:\\SSp585_Preci_HisNFMFFF.xlsx'  # Replace with the correct path
 
 # Load data
 ssp245_data = pd.read_excel(file_path_1, sheet_name='Sheet1')
