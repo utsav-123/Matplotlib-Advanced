@@ -1,0 +1,69 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# File paths
+file_path_1 = 'C:\\Kankai River Basin\\Future Data Graph for Paper\\Results Complied for Graph\\SSp245_Preci_HisNFMFFF.xlsx'  # Replace with the correct path
+file_path_2 = 'C:\\Kankai River Basin\\Future Data Graph for Paper\\Results Complied for Graph\\SSp585_Preci_HisNFMFFF.xlsx'  # Replace with the correct path
+
+# Load data
+ssp245_data = pd.read_excel(file_path_1, sheet_name='Sheet1')
+ssp585_data = pd.read_excel(file_path_2, sheet_name='Sheet1')
+
+# Extract columns
+months_245 = ssp245_data["Months"]
+historical_245 = ssp245_data["Historical"]
+nf_245 = ssp245_data["NF"]
+mf_245 = ssp245_data["MF"]
+ff_245 = ssp245_data["FF"]
+
+months_585 = ssp585_data["Months"]
+historical_585 = ssp585_data["Historical"]
+nf_585 = ssp585_data["NF"]
+mf_585 = ssp585_data["MF"]
+ff_585 = ssp585_data["FF"]
+
+# Create subplots
+fig, axes = plt.subplots(1, 2, figsize=(15, 6), sharey=True)
+
+# Colors and labels
+colors = ["blue", "green", "orange", "red"]
+labels = ["Historical", "Near Future (NF)", "Mid Future (MF)", "Far Future (FF)"]
+
+# Plot for SSP 245
+axes[0].plot(months_245, historical_245, label="Historical", color=colors[0], marker="o")
+axes[0].plot(months_245, nf_245, label="Near Future (NF)", color=colors[1], marker="o")
+axes[0].plot(months_245, mf_245, label="Mid Future (MF)", color=colors[2], marker="o")
+axes[0].plot(months_245, ff_245, label="Far Future (FF)", color=colors[3], marker="o")
+axes[0].set_title("SSP 245", fontsize = 14, weight = 'bold' )
+axes[0].set_xlabel("Months", fontsize = 14)
+axes[0].set_ylabel("Precipitation (mm)", fontsize = 14)
+axes[0].set_xticks(range(len(months_245)))
+axes[0].set_xticklabels(months_245)
+
+
+# Plot for SSP 585
+axes[1].plot(months_585, historical_585, label="Historical", color=colors[0], marker="o")
+axes[1].plot(months_585, nf_585, label="Near Future (NF)", color=colors[1], marker="o")
+axes[1].plot(months_585, mf_585, label="Mid Future (MF)", color=colors[2], marker="o")
+axes[1].plot(months_585, ff_585, label="Far Future (FF)", color=colors[3], marker="o")
+axes[1].set_title("SSP 585", fontsize = 14, weight = 'bold')
+axes[1].set_xlabel("Months", fontsize = 14)
+axes[1].set_xticks(range(len(months_585)))
+axes[1].set_xticklabels(months_585)
+
+# Adjust tick size for x and y axis
+for ax in axes:
+    ax.tick_params(axis='y', labelsize=12)
+    ax.tick_params(axis='x', labelsize=12)
+
+# Add legends
+fig.legend(labels, loc="lower center", ncol=4, bbox_to_anchor=(0.5, 0.09))
+
+# Adjust layout
+plt.tight_layout()
+plt.subplots_adjust(bottom=0.25)
+
+# Save the plot as a JPG file
+output_path = "C:\\Kankai River Basin\\Future Data Graph for Paper\\Results Complied for Graph\\Precipitation_SSP245_SSP585_Combined.jpg"
+plt.savefig(output_path, dpi=600)
+plt.show()
