@@ -64,6 +64,6 @@ plt.tight_layout()
 plt.subplots_adjust(bottom=0.25)
 
 # Save the plot as a JPG file
-output_path = "C:\\Kankai River Basin\\Future Data Graph for Paper\\Results Complied for Graph\\Precipitation_SSP245_SSP585_Combined.jpg"
+output_path = "C:\\Precipitation_SSP245_SSP585_Combined.jpg"
 plt.savefig(output_path, dpi=600)
 plt.show()
