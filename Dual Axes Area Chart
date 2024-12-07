@@ -1,0 +1,47 @@
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load the Excel files
+glacier_file = 'Glacier Area Summary.xlsx'  
+lake_file = 'Lake Area Summary.xlsx'       
+
+glacier_data = pd.read_excel(glacier_file)
+lake_data = pd.read_excel(lake_file)
+
+# Extract data
+dates = glacier_data['Date']
+glacier_area = glacier_data['Area of Glacier']
+glacier_error = glacier_data['Error']
+lake_area = lake_data['Area of Lake']
+lake_error = lake_data['Error']
+
+# Create the plot
+fig, ax1 = plt.subplots(figsize=(10, 6))
+
+# Plot glacier area with error bars and caps
+ax1.errorbar(dates, glacier_area, yerr=glacier_error, fmt='-o', color='green', label='Area of Glacier', capsize=5)
+ax1.set_xlabel('Year', fontsize=12, weight = 'bold')
+ax1.set_ylabel('Area of Glacier (km²)', color='black', fontsize=11, weight = 'bold')
+ax1.tick_params(axis='y', labelcolor='black', labelsize=11)
+ax1.set_ylim(20, 28)
+
+# Create a secondary y-axis for lake area
+ax2 = ax1.twinx()
+ax2.errorbar(dates, lake_area, yerr=lake_error, fmt='-o', color='blue', label='Area of Lake', capsize=5)
+ax2.set_ylabel('Area of Lake (km²)', color='black', fontsize=11, weight = 'bold')
+ax2.tick_params(axis='y', labelcolor='black', labelsize=11)
+ax2.set_ylim(0.05, 0.3)
+
+# Add legend
+ax1.legend(loc="upper left", bbox_to_anchor=(0, 1.01))
+ax2.legend(loc="upper left", bbox_to_anchor=(0, 0.96))
+
+# Add title and grid
+fig.tight_layout()
+
+# Save the plot as a JPG file
+output_path = "C:\\Birendra Lake\\NDWI\\Area Summary\\Area_Chart.jpg"
+plt.savefig(output_path, dpi=600)
+
+# Show plot
+plt.show()
