@@ -1,0 +1,76 @@
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+
+# Corrected DataFrame with proper row-wise data input
+data = pd.DataFrame({
+    "Scenario": ["SSP 245"] * 5 + ["SSP 585"] * 5,
+    "Season": ["Annual", "Pre-monsoon", "Monsoon", "Post-monsoon", "Winter"] * 2,
+    "NF": [-0.69,0.82,-0.63,-1.88,-1.25,-1.37,-5,-0.68,-0.34,0],
+    "MF": [0.84,0.92,-0.48,-0.74,5.17,2.6,3.65,0.11,0.64,8.79],
+    "FF": [0.87,1.35,-0.34,-0.71,4.55,6.22,12.48,1.47,2.15,13.90]
+})
+
+# Ensure proper reshaping of the data to long format
+data_long = pd.melt(data, id_vars=["Scenario", "Season"], value_vars=["NF", "MF", "FF"],
+                    var_name="Future", value_name="Change")
+
+# Define color mapping
+colors = {"NF": "skyblue", "MF": "darkgreen", "FF": "brown"}
+
+# Create the plot
+g = sns.catplot(
+    data=data_long, x="Season", y="Change", hue="Future", col="Scenario",
+    kind="bar", palette=colors, height=5, aspect=1.2
+)
+
+# Adjust x-axis label positioning
+g.set_axis_labels("", "(%) Change in Energy Generation", fontsize=12)
+
+# Rotate x-axis labels
+g.set_xticklabels(rotation=45)
+
+# Adjust tick marks to make them thicker
+for ax in g.axes.flat:
+    ax.tick_params(axis='y', width=1.5)  # Increase the width of the y-axis tick marks
+    ax.tick_params(axis='x', width=1.5)  # If you want to increase the x-axis tick marks too
+
+    # Ensure the y-axis tick labels are set correctly, without decimals
+    ax.set_yticks(ax.get_yticks())  # Explicitly set the y-ticks
+    ax.set_yticklabels([f'{int(tick)}' for tick in ax.get_yticks()], fontsize=11)  # Convert ticks to integers and adjust font size
+
+# Set y-axis ticks interval to 4, including both positive and negative ticks around zero
+    yticks = range(int(min(ax.get_yticks()) // 4) * 4, int(max(ax.get_yticks()) // 4 + 1) * 4, 4)
+    ax.set_yticks(yticks)
+    
+    # Plot a horizontal line at y=0
+    ax.axhline(0, color='black', linewidth=1)  # Horizontal line at y=0
+
+# Manually set subplot titles
+subplot_titles = {"SSP 245": "SSP 245", "SSP 585": "SSP 585"}
+for ax, title in zip(g.axes.flat, data["Scenario"].unique()):
+    ax.set_title(subplot_titles[title], fontsize=13, weight='bold')
+
+    # Add a box around each subplot
+    for spine in ax.spines.values():
+        spine.set_visible(True)  # Make all borders visible
+        spine.set_linewidth(1)  # Set border thickness
+
+# Remove default legend
+g._legend.remove()
+
+# Create a new legend below the plot, horizontal
+handles, labels = g._legend_data.values(), g._legend_data.keys()
+# Update legend labels to show full names
+full_labels = {"NF": "Near Future", "MF": "Mid Future", "FF": "Far Future"}
+full_labels_list = [full_labels[label] for label in labels]
+plt.legend(handles, full_labels_list, loc='lower center', ncol=3, bbox_to_anchor=(0, -0.44), frameon=True, fontsize=12)
+
+# Adjust layout to prevent overlap
+plt.subplots_adjust(bottom=0.25)
+
+# Display the plot
+plt.show()
+
+# Save the plot to a file
+g.savefig("Energy_variation.png", dpi=600, bbox_inches='tight')
