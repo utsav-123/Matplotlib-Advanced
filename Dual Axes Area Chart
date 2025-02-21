@@ -45,3 +45,81 @@ plt.savefig(output_path, dpi=600)
 
 # Show plot
 plt.show()
+
+
+
+# Improvement with data shown for respective dates only
+
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# Load the Excel files
+glacier_file = 'Glacier Area Summary.xlsx'
+lake_file = 'Lake Area Summary.xlsx'
+
+glacier_data = pd.read_excel(glacier_file)
+lake_data = pd.read_excel(lake_file)
+
+# Convert 'Date' columns to datetime format
+glacier_data['Date'] = pd.to_datetime(glacier_data['Date'], format='%Y')
+lake_data['Date'] = pd.to_datetime(lake_data['Date'], format='%Y')
+
+# Ensure the sizes match by merging the dataframes on 'Date'
+merged_data = pd.merge(glacier_data, lake_data, on='Date', suffixes=('_glacier', '_lake'))
+
+# Extract data
+dates = merged_data['Date']
+glacier_area = merged_data['Area of Glacier']
+glacier_error = merged_data['Error_glacier']
+lake_area = merged_data['Area of Lake']
+lake_error = merged_data['Error_lake']
+
+# Create the plot
+fig, ax1 = plt.subplots(figsize=(10, 6))
+
+# Plot glacier area with error bars and caps
+ax1.errorbar(dates, glacier_area, yerr=glacier_error, fmt='-o', color='green', label='Area of Glacier', capsize=5)
+ax1.set_xlabel('Year', fontsize=12, weight='bold')
+ax1.set_ylabel('Area of Glacier (km²)', color='black', fontsize=11, weight='bold', ha='right')
+ax1.tick_params(axis='y', labelcolor='black', labelsize=11)
+ax1.set_ylim(20, 28)
+
+# Set specific years on x-axis and adjust horizontal alignment
+ax1.set_xticks(dates)
+ax1.set_xticklabels([date.year for date in dates], fontsize=11, ha='center', rotation=0)
+
+# Adjust specific alignments for 2023 and 2024
+for label in ax1.get_xticklabels():
+    if label.get_text() == '2023':
+        label.set_ha('right')
+    elif label.get_text() == '2024':
+        label.set_ha('left')
+        
+# Increase the size of the dashed lines on the ticks
+ax1.tick_params(axis='both', which='both', length=5, width=2, direction='out')
+
+# Create a secondary y-axis for lake area
+ax2 = ax1.twinx()
+ax2.errorbar(dates, lake_area, yerr=lake_error, fmt='-o', color='blue', label='Area of Lake', capsize=5)
+ax2.set_ylabel('Area of Lake (km²)', color='black', fontsize=11, weight='bold')
+ax2.tick_params(axis='y', labelcolor='black', labelsize=11)
+ax2.set_ylim(0.05, 0.3)
+
+# Increase the size of the dashed lines on the ticks
+ax2.tick_params(axis='both', which='both', length=5, width=2, direction='out')
+
+# Add legend
+ax1.legend(loc="upper left", bbox_to_anchor=(0, 1.01))
+ax2.legend(loc="upper left", bbox_to_anchor=(0, 0.96))
+
+# Add title and grid
+fig.tight_layout()
+
+# Save the plot as a JPG file
+output_path = "C:\\Birendra Lake\\NDWI\\Area Summary\\Area_Chart (REVISED).jpg"
+plt.savefig(output_path, dpi=600)
+
+# Show plot
+plt.show()
+
+
