@@ -40,7 +40,7 @@ ax2.legend(loc="upper left", bbox_to_anchor=(0, 0.96))
 fig.tight_layout()
 
 # Save the plot as a JPG file
-output_path = "C:\\Birendra Lake\\NDWI\\Area Summary\\Area_Chart.jpg"
+output_path = "C:\\Area Summary\\Area_Chart.jpg"
 plt.savefig(output_path, dpi=600)
 
 # Show plot
@@ -80,7 +80,7 @@ fig, ax1 = plt.subplots(figsize=(10, 6))
 # Plot glacier area with error bars and caps
 ax1.errorbar(dates, glacier_area, yerr=glacier_error, fmt='-o', color='green', label='Area of Glacier', capsize=5)
 ax1.set_xlabel('Year', fontsize=12, weight='bold')
-ax1.set_ylabel('Area of Glacier (km²)', color='black', fontsize=11, weight='bold', ha='right')
+ax1.set_ylabel('Area of Glacier (km²)', color='black', fontsize=11, weight='bold')
 ax1.tick_params(axis='y', labelcolor='black', labelsize=11)
 ax1.set_ylim(20, 28)
 
@@ -116,7 +116,7 @@ ax2.legend(loc="upper left", bbox_to_anchor=(0, 0.96))
 fig.tight_layout()
 
 # Save the plot as a JPG file
-output_path = "C:\\Birendra Lake\\NDWI\\Area Summary\\Area_Chart (REVISED).jpg"
+output_path = "C:\\Area Summary\\Area_Chart (REVISED).jpg"
 plt.savefig(output_path, dpi=600)
 
 # Show plot
