@@ -88,13 +88,13 @@ def rate_pbias(pbias):
         return 1
 
 def rate_r2(r2):
-    if r2 > 0.50:
+    if r2 > 0.80:
         return 5
-    elif 0.50 < r2 <= 0.60:
+    elif 0.70 < r2 <= 0.80:
         return 4
     elif 0.60 < r2 <= 0.70:
         return 3
-    elif 0.70 < r2 <= 0.80:
+    elif 0.50 < r2 <= 0.60:
         return 2
     else:
         return 1
