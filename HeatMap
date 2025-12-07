@@ -1,3 +1,5 @@
+****************************************************** NSE, PBIAS, R2 *******************************************
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import pandas as pd
@@ -163,3 +165,189 @@ top_13_gcm = gcm_performance_avg.sort_values(ascending=False).head(13)
 print("Top 13 Best Performing GCM Models:")
 print(top_13_gcm)
 
+# Save top GCMs to text file
+top_13_gcm.to_csv("Top_GCM.txt", header=True)
+
+
+
+
+
+****************************************************NSE, PBIAS, RSR ************************************************************
+import matplotlib.pyplot as plt
+import seaborn as sns
+import pandas as pd
+import numpy as np
+
+# Data from the provided dictionaries
+nse = {
+    "GCM": [
+        "ACCESS-CM2", "ACCESS-ESM1-5", "BCC-CSM2-MR", "CanESM5", "EC-Earth3", "EC-Earth3-Veg", "INM-CM4-8", "INM-CM5-0", "MPI-ESM1-2-HR",
+        "MPI-ESM1-2-LR", "MRI-ESM2-0", "NORESM2-LM", "NorESM2-MM"
+    ],
+
+    "408_PCP": [-0.09995, 0.02283, 0.55573, -1.79995, 0.29369, 0.29780, 0.17538,0.14541, 0.29160, 0.37551, 0.00108, 0.02596, 0.35213],
+
+    "412_PCP": [0.13586, 0.36191, 0.61055, -1.54259, 0.45121, 0.41494, 0.31027,0.27439, 0.45880, 0.47282, 0.15677, 0.01121, 0.42919],
+
+    "417_PCP": [0.13362, 0.11314, 0.53207, -1.46986, 0.29351, 0.28196, 0.26464,0.20476, 0.36582, 0.39628, 0.10885, 0.02537, 0.34480],
+
+    "507_PCP": [0.08157, 0.30341, 0.58094, -1.46831, 0.28600, 0.24006, 0.25055, 0.24417, 0.37720, 0.35501, 0.07439, -0.02974, 0.36163],
+
+    "508_PCP": [0.10639, 0.21284, 0.57710, -1.52949, 0.29635, 0.31044, 0.32343, 0.18755, 0.44459, 0.40598, -0.06728, -0.01039, 0.36345],
+
+    "511_PCP": [0.05744, 0.19260, 0.52033, -1.91638, 0.19972, 0.19373, 0.11451, -0.03433, 0.22143, 0.31292, -0.02437, -0.02366, 0.32288],
+
+    "512_PCP": [0.13244, 0.18978, 0.43053, -1.05355, 0.24225, 0.19770, 0.11578, 0.16839, 0.26432, 0.28196, 0.04327, -0.07530, 0.32087],
+
+    "417_Tmax": [0.86736, 0.85847, 0.85115, 0.85476, 0.81597, 0.83366, 0.84069,0.84985, 0.86549, 0.84014, 0.87057, 0.86333, 0.84283],
+
+    "417_Tmin": [0.92965, 0.92291, 0.92247, 0.91287, 0.93599, 0.92876, 0.91486,0.91856, 0.93493, 0.92576, 0.92214, 0.93175, 0.92589],
+
+    "508_Tmax": [0.84541, 0.84320, 0.83566, 0.82587, 0.80349, 0.82407, 0.79717,0.82715, 0.83610, 0.81986, 0.83443, 0.84936, 0.85665],
+
+    "508_Tmin": [0.94763, 0.93862, 0.93259, 0.93571, 0.93547, 0.94796, 0.94196,0.94289, 0.94210, 0.94377, 0.93881, 0.94127, 0.94499],
+
+    "511_Tmax": [0.76261, 0.73865, 0.74300, 0.74374, 0.69774, 0.71488, 0.71849,0.72415, 0.72809, 0.70274, 0.71818, 0.77390, 0.72951],
+
+    "511_Tmin": [0.91775, 0.90974, 0.90340, 0.90267, 0.91998, 0.92607, 0.90595,0.90507, 0.91640, 0.90536, 0.90179, 0.92049, 0.91670]
+}
+
+
+pbias = {
+    'GCM': ['ACCESS-CM2', 'ACCESS-ESM1-5', 'BCC-CSM2-MR', 'CanESM5', 'EC-Earth3', 'EC-Earth3-Veg', 'INM-CM4-8',
+            'INM-CM5-0', 'MPI-ESM1-2-HR', 'MPI-ESM1-2-LR', 'MRI-ESM2-0', 'NORESM2-LM', 'NorESM2-MM'],
+
+   "408_PCP": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "412_PCP": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "417_PCP": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "507_PCP": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "508_PCP": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "511_PCP": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "512_PCP": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "417_Tmax": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "417_Tmin": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "508_Tmax": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "508_Tmin": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "511_Tmax": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+    "511_Tmin": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+}
+
+rsr = {
+    'GCM': ['ACCESS-CM2', 'ACCESS-ESM1-5', 'BCC-CSM2-MR', 'CanESM5', 'EC-Earth3', 'EC-Earth3-Veg',
+            'INM-CM4-8', 'INM-CM5-0', 'MPI-ESM1-2-HR', 'MPI-ESM1-2-LR', 'MRI-ESM2-0', 'NORESM2-LM', 'NorESM2-MM'],
+
+    "408_PCP": [1.047498, 0.987307, 0.665722, 1.671255, 0.83999, 0.836949, 0.906971, 0.923308, 0.844633, 0.789276, 0.998236, 0.985723, 0.803916],
+    "412_PCP": [0.928454, 0.797827, 0.623291, 1.592594, 0.739896, 0.763954, 0.829482, 0.850785, 0.73476, 0.725182, 0.917152, 0.993161, 0.754596],
+    "417_PCP": [0.929652, 0.940578, 0.683213, 1.569965, 0.839499, 0.84633, 0.85648, 0.890671, 0.795377, 0.776039, 0.942848, 0.986023, 0.808451],
+    "507_PCP": [0.957172, 0.833596, 0.644557, 1.569159, 0.843951, 0.870678, 0.864644, 0.868317, 0.788209, 0.802127, 0.960908, 1.013519, 0.798],
+    "508_PCP": [0.944148, 0.88613, 0.649511, 1.588486, 0.837811, 0.829377, 0.821533, 0.900254, 0.744345, 0.769782, 1.031828, 1.003947, 0.796864],
+    "511_PCP": [0.969665, 0.897452, 0.691732, 1.705647, 0.893485, 0.896823, 0.939852, 1.015772, 0.881282, 0.827886, 1.010869, 1.010518, 0.821862],
+    "512_PCP": [0.930287, 0.89902, 0.753706, 1.431263, 0.869424, 0.894611, 0.939175, 0.910809, 0.856666, 0.846332, 0.976929, 1.035695, 0.823086],
+    "417_Tmax": [0.363751, 0.375737, 0.385339, 0.380639, 0.428465, 0.407348, 0.39865, 0.387016, 0.366308, 0.399332, 0.359932, 0.369234, 0.395966],
+    "417_Tmin": [0.264917, 0.277316, 0.278104, 0.294817, 0.252698, 0.266577, 0.291437, 0.285019, 0.254769, 0.272139, 0.2787, 0.260922, 0.271905],
+    "508_Tmax": [0.391697, 0.395494, 0.404897, 0.416782, 0.442747, 0.418923, 0.44981, 0.415247, 0.404348, 0.423909, 0.406404, 0.387651, 0.378151],
+    "508_Tmin": [0.228554, 0.247455, 0.259307, 0.253245, 0.253709, 0.227841, 0.240614, 0.238676, 0.240321, 0.236843, 0.247069, 0.242048, 0.234251],
+    "511_Tmax": [0.486624, 0.510593, 0.506328, 0.505597, 0.549108, 0.533313, 0.529923, 0.524567, 0.520808, 0.54455, 0.53022, 0.474919, 0.519446],
+    "511_Tmin": [0.286432, 0.300072, 0.310429, 0.311593, 0.328239, 0.271565, 0.306307, 0.307735, 0.288785, 0.307261, 0.312995, 0.281635, 0.288259]
+}
+
+
+# Rating function for each metric
+def rate_nse(nse):
+    if nse >= 0.75:
+        return 5
+    elif nse >= 0.5:
+        return 4
+    elif nse >= 0.25:
+        return 3
+    elif nse >= 0:
+        return 2
+    else:
+        return 1
+
+def rate_pbias(pbias):
+    if -10 <= pbias <= 10:
+        return 5
+    elif -20 <= pbias < -10 or 10 < pbias <= 20:
+        return 4
+    elif -30 <= pbias < -20 or 20 < pbias <= 30:
+        return 3
+    elif -40 <= pbias < -30 or 30 < pbias <= 40:
+        return 2
+    else:
+        return 1
+
+def rate_rsr(rsr):
+    if rsr <= 0.50:
+        return 5
+    elif rsr <= 0.60:
+        return 4
+    elif rsr <= 0.70:
+        return 3
+    elif rsr <= 0.80:
+        return 2
+    else:
+        return 1
+
+# DataFrames for each dictionary
+nse_df = pd.DataFrame(nse).set_index('GCM')
+pbias_df = pd.DataFrame(pbias).set_index('GCM')
+rsr_df = pd.DataFrame(rsr).set_index('GCM')
+# Create performance rating DataFrame
+performance_rating = pd.DataFrame(index=nse_df.index)
+
+for station in nse_df.columns:
+    # Calculate performance rating for each metric (NSE, PBIAS, RSR) and average them
+    performance_rating[station] = (
+        nse_df[station].apply(rate_nse) +
+        pbias_df[station].apply(rate_pbias) +
+        rsr_df[station].apply(rate_rsr)
+    ) / 3  # Average the ratings
+
+# Function to create a heatmap
+def create_heatmap(data, ax, title, vmin, vmax):
+    sns.heatmap(data, cmap="RdYlBu", annot=False, fmt='.2f', ax=ax, vmin=vmin, vmax=vmax,linewidths=0.5, linecolor='black')
+    ax.set_title(title, fontsize=14)
+    ax.set_xlabel('', fontsize=9)
+    #ax.set_ylabel('Stations', fontsize=9)
+    
+# Plotting
+fig, axes = plt.subplots(2, 2, figsize=(12, 12))
+
+# Flatten axes array for easy indexing
+axes = axes.flatten()
+
+# NSE heatmap
+create_heatmap(nse_df.transpose(),axes[0], 'NSE', vmin=-0.3, vmax=1)
+
+# PBIAS heatmap
+create_heatmap(pbias_df.transpose(), axes[1], 'PBIAS', vmin=-30, vmax=30)
+
+# RSR heatmap
+create_heatmap(rsr_df.transpose(), axes[2], 'RSR', vmin=0, vmax=1)
+
+# Performance rating heatmap
+create_heatmap(performance_rating.transpose(), axes[3], 'Performance Rating', vmin=1, vmax=5)
+
+# Adjust the spacing between subplots
+plt.subplots_adjust(wspace=1.2, hspace=3)
+
+# Visualize the plot
+plt.tight_layout()
+plt.show()
+
+# Save the plots
+fig.savefig("Rating Summary.png", dpi = 600)
+
+# Compute the average performance rating for each GCM model across all stations
+gcm_performance_avg = performance_rating.mean(axis=1)
+
+# Sort the GCM models by their average performance rating in descending order
+top_4_gcm = gcm_performance_avg.sort_values(ascending=False).head(4)
+
+# Display the top 4 best-performing GCM models
+print("Top 4 Best Performing GCM Models:")
+print(top_4_gcm)
+
+# Save top GCMs to text file
+top_4_gcm.to_csv("Top_GCM.txt", header=True)
