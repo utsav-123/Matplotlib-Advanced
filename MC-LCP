@@ -1,0 +1,898 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+import matplotlib.patches as mpatches
+import rasterio
+import geopandas as gpd
+from rasterio.transform import rowcol
+from shapely.geometry import MultiPoint
+import heapq
+import time
+import warnings
+warnings.filterwarnings('ignore')
+print('✅ All libraries imported!')
+
+
+
+
+DEM_PATH       = 'DEM_ALOSwhole.tif'       # your DEM file
+LAKE_SHAPEFILE = 'LumdingTsho_2025.shp'      # your lake shapefile
+DAM_SHAPEFILE  = 'Lumding_Dam.shp'       # your dam shapefile
+OUTPUT_PATH    = 'lumding_tsho_flood_probability.tif'
+
+# MC-LCP Settings — leave as default
+N_ITERATIONS = 200     # number of Monte Carlo runs
+DEM_ERROR_M  = 3.0     # vertical error of ASTER/SRTM in meters
+
+print('✅ Paths configured!')
+print(f'   DEM      : {DEM_PATH}')
+print(f'   Lake     : {LAKE_SHAPEFILE}')
+print(f'   Dam      : {DAM_SHAPEFILE}')
+print(f'   Output   : {OUTPUT_PATH}')
+print(f'   Runs     : {N_ITERATIONS}')
+print(f'   DEM error: ±{DEM_ERROR_M} m')
+
+
+
+
+# Load DEM
+with rasterio.open(DEM_PATH) as src:
+    dem           = src.read(1).astype(np.float32)
+    dem_transform = src.transform
+    dem_crs       = src.crs
+    dem_profile   = src.profile
+    cell_size_m   = abs(src.transform[0])
+
+# Clean nodata values
+dem[dem == dem_profile.get('nodata', -9999)] = np.nan
+dem[dem < -500] = np.nan
+
+print('✅ DEM loaded!')
+print(f'   Shape     : {dem.shape[0]} rows x {dem.shape[1]} cols')
+print(f'   Cell size : {cell_size_m:.1f} m')
+print(f'   Elevation : {np.nanmin(dem):.0f}m to {np.nanmax(dem):.0f}m')
+print(f'   CRS       : {dem_crs}')
+
+# Plot DEM
+fig, ax = plt.subplots(figsize=(10, 8))
+img = ax.imshow(dem, cmap='terrain',
+                vmin=np.nanpercentile(dem, 2),
+                vmax=np.nanpercentile(dem, 98))
+plt.colorbar(img, ax=ax, label='Elevation (m)')
+ax.set_title('DEM — Lumding Tsho Area', fontsize=14, fontweight='bold')
+ax.set_xlabel('Column')
+ax.set_ylabel('Row')
+plt.tight_layout()
+plt.savefig('01_dem.png', dpi=150, bbox_inches='tight')
+plt.show()
+print('   Saved as 01_dem.png')
+
+
+
+
+
+# Load lake shapefile
+lake_gdf = gpd.read_file(LAKE_SHAPEFILE)
+
+# Match CRS to DEM
+if lake_gdf.crs != dem_crs:
+    print(f'   Reprojecting lake to match DEM CRS...')
+    lake_gdf = lake_gdf.to_crs(dem_crs)
+
+# Get lake geometry and area
+lake_geom     = lake_gdf.geometry.iloc[0]
+lake_area_m2  = lake_geom.area
+lake_area_km2 = lake_area_m2 / 1e6
+lake_centroid = lake_geom.centroid
+
+print(f'✅ Lake loaded!')
+print(f'   Area     : {lake_area_m2:.0f} m² ({lake_area_km2:.4f} km²)')
+print(f'   Centroid : ({lake_centroid.x:.4f}, {lake_centroid.y:.4f})')
+
+
+
+
+# Load dam shapefile
+dam_gdf = gpd.read_file(DAM_SHAPEFILE)
+
+# Match CRS to DEM
+if dam_gdf.crs != dem_crs:
+    print(f'   Reprojecting dam to match DEM CRS...')
+    dam_gdf = dam_gdf.to_crs(dem_crs)
+
+dam_geom = dam_gdf.geometry.iloc[0]
+
+print(f'✅ Dam shapefile loaded!')
+print(f'   Dam area : {dam_geom.area:.0f} m²')
+
+# ----------------------------------------------------------
+# STEP 1: Sample points along the entire dam boundary
+# Sample every 5 meters for high precision
+# ----------------------------------------------------------
+dam_boundary   = dam_geom.exterior
+dam_perimeter  = dam_boundary.length
+sample_spacing = 5.0
+n_samples      = int(dam_perimeter / sample_spacing)
+
+print(f'\n   Dam perimeter  : {dam_perimeter:.0f} m')
+print(f'   Sampling every : {sample_spacing} m')
+print(f'   Total samples  : {n_samples} points')
+
+sample_points = []
+
+for i in range(n_samples):
+    distance = i * sample_spacing
+    point    = dam_boundary.interpolate(distance)
+    px, py   = point.x, point.y
+
+    dist_to_lake = point.distance(lake_centroid)
+
+    try:
+        r, c = rowcol(dem_transform, px, py)
+        if 0 <= r < dem.shape[0] and 0 <= c < dem.shape[1]:
+            elev = dem[r, c]
+            if not np.isnan(elev):
+                sample_points.append({
+                    'x'            : px,
+                    'y'            : py,
+                    'row'          : r,
+                    'col'          : c,
+                    'elevation'    : elev,
+                    'dist_to_lake' : dist_to_lake
+                })
+    except:
+        continue
+
+print(f'   Valid samples  : {len(sample_points)} points')
+
+# ----------------------------------------------------------
+# STEP 2: Separate upstream vs downstream face
+# Points far from lake centroid = downstream face
+# Points close to lake centroid = upstream face
+# ----------------------------------------------------------
+distances   = [p['dist_to_lake'] for p in sample_points]
+median_dist = np.median(distances)
+
+downstream_points = [p for p in sample_points
+                     if p['dist_to_lake'] >= median_dist]
+upstream_points   = [p for p in sample_points
+                     if p['dist_to_lake'] <  median_dist]
+
+print(f'\n   Upstream points   : {len(upstream_points)}')
+print(f'   Downstream points : {len(downstream_points)}')
+
+# ----------------------------------------------------------
+# STEP 3: Find lowest point on downstream face = outlet
+# This is where breach would initiate
+# ----------------------------------------------------------
+outlet_point    = min(downstream_points, key=lambda p: p['elevation'])
+upstream_lowest = min(upstream_points,   key=lambda p: p['elevation'])
+
+outlet_x   = outlet_point['x']
+outlet_y   = outlet_point['y']
+outlet_row = outlet_point['row']
+outlet_col = outlet_point['col']
+min_elev   = outlet_point['elevation']
+
+print(f'\n✅ Dam outlet point identified!')
+print(f'   Outlet coordinates    : ({outlet_x:.4f}, {outlet_y:.4f})')
+print(f'   Outlet elevation      : {min_elev:.1f} m')
+print(f'   Upstream face lowest  : {upstream_lowest["elevation"]:.1f} m')
+print(f'   Est. dam height       : {upstream_lowest["elevation"] - min_elev:.1f} m')
+print(f'   DEM grid position     : row={outlet_row}, col={outlet_col}')
+
+
+
+
+import matplotlib.pyplot as plt
+
+# --- 1. SETUP COORDINATES FROM CRS DIAGNOSIS ---
+dem_ext = [418607.21875, 497419.71875, 3033707.75, 3104695.25]
+out_x = 418607.22 + (3572 * 12.5)
+out_y = 3104695.25 + (2631 * -12.5)
+
+# Clear any previous figure "ghosts"
+plt.close('all')
+
+# Create the figure and store the handle in 'fig'
+fig, axes = plt.subplots(1, 2, figsize=(16, 7))
+
+# ---- Left panel: map view ----
+ax1 = axes[0]
+ax1.imshow(dem, cmap='terrain', extent=dem_ext,
+           vmin=np.nanpercentile(dem, 2),
+           vmax=np.nanpercentile(dem, 98))
+
+lake_gdf.boundary.plot(ax=ax1, color='blue', linewidth=2, label='Lake boundary')
+dam_gdf.plot(ax=ax1, color='brown', alpha=0.5, label='Dam body')
+dam_gdf.boundary.plot(ax=ax1, color='saddlebrown', linewidth=2)
+
+ax1.plot(out_x, out_y, 'r*', markersize=20, zorder=6, label=f'Outlet ({min_elev:.0f}m)')
+ax1.plot(lake_centroid.x, lake_centroid.y, 'b+', markersize=14, linewidth=3, label='Lake centroid')
+
+# ZOOM: Essential to see the data at this UTM scale
+l_minx, l_miny, l_maxx, l_maxy = lake_gdf.total_bounds
+ax1.set_xlim(l_minx - 500, l_maxx + 1500)
+ax1.set_ylim(l_miny - 1500, l_maxy + 500)
+
+ax1.legend(fontsize=9, loc='upper right')
+ax1.set_title('Lake, Dam and Outlet Point\nLumding Tsho', fontsize=12, fontweight='bold')
+ax1.set_xlabel('Easting (m)')
+ax1.set_ylabel('Northing (m)')
+
+# ---- Right panel: elevation profile along dam boundary ----
+ax2 = axes[1]
+sorted_points = sorted(sample_points, key=lambda p: p['dist_to_lake'])
+distances_plot = [p['dist_to_lake'] for p in sorted_points]
+elevations_plot = [p['elevation'] for p in sorted_points]
+
+ax2.plot(distances_plot, elevations_plot, color='gray', linewidth=1, alpha=0.5, label='All boundary points')
+
+ds_dist = [p['dist_to_lake'] for p in downstream_points]
+ds_elev = [p['elevation'] for p in downstream_points]
+ax2.scatter(ds_dist, ds_elev, color='orange', s=15, zorder=3, label='Downstream face')
+
+ax2.plot(outlet_point['dist_to_lake'], min_elev, 'r*', markersize=18, zorder=5, label=f'Outlet ({min_elev:.0f}m)')
+
+ax2.axvline(median_dist, color='green', linestyle='--', linewidth=1.5, label='Upstream/Downstream split')
+
+ax2.set_xlabel('Distance from Lake Centroid (m)', fontsize=11)
+ax2.set_ylabel('Elevation (m)', fontsize=11)
+ax2.set_title('Dam Boundary Elevation Profile', fontsize=12, fontweight='bold')
+ax2.legend(fontsize=9)
+ax2.grid(True, alpha=0.3)
+
+# Finalize Layout
+plt.suptitle('Dam Outlet Determination — Lumding Tsho', fontsize=13, fontweight='bold', y=1.01)
+fig.tight_layout()
+
+# --- THE FIX: USE THE FIGURE HANDLE TO SAVE ---
+# This forces the save of the actual data, avoiding the "0 Axes" error
+fig.savefig('02_dam_outlet.png', dpi=300, bbox_inches='tight')
+
+# Display the plot
+plt.show()
+
+
+
+
+
+
+print('=' * 50)
+print('  DAM OUTLET SANITY CHECK')
+print('=' * 50)
+
+lc_row, lc_col    = rowcol(dem_transform, lake_centroid.x, lake_centroid.y)
+lake_surface_elev = dem[lc_row, lc_col]
+
+print(f'\n  Lake surface elevation  : {lake_surface_elev:.1f} m')
+print(f'  Dam upstream elevation  : {upstream_lowest["elevation"]:.1f} m')
+print(f'  Dam outlet elevation    : {min_elev:.1f} m')
+
+# Check 1: outlet should be below lake surface
+if min_elev < lake_surface_elev:
+    print(f'\n  ✅ Check 1 PASSED — outlet is below lake surface')
+else:
+    print(f'\n  ⚠️  Check 1 WARNING — outlet appears higher than lake surface')
+    print(f'     Consider manually setting outlet coordinates')
+
+# Check 2: downstream should be lower than upstream
+if min_elev < upstream_lowest['elevation']:
+    print(f'\n  ✅ Check 2 PASSED — downstream face lower than upstream face')
+else:
+    print(f'\n  ⚠️  Check 2 WARNING — downstream appears higher than upstream')
+    print(f'     Try using upstream_points instead of downstream_points')
+
+print(f'\n  Proceeding with outlet at {min_elev:.1f} m')
+print('=' * 50)
+
+
+
+
+
+# Cook and Quincy (2015) empirical equation
+# Same method used in Byers et al. (2018)
+# V = 0.104 * A^1.42  where A = lake area in m²
+
+lake_volume_m3  = 0.104 * (lake_area_m2 ** 1.42)
+flood_volume_m3 = lake_volume_m3   # worst case — full lake drains
+
+print('✅ Flood volume estimated!')
+print(f'   Lake area            : {lake_area_km2:.4f} km²')
+print(f'   Lake volume          : {lake_volume_m3:,.0f} m³')
+print(f'   Flood volume         : {flood_volume_m3:,.0f} m³')
+print(f'\n   Scenarios:')
+print(f'   Low  (50% drains)    : {flood_volume_m3*0.5:,.0f} m³')
+print(f'   High (100% drains)   : {flood_volume_m3:,.0f} m³')
+print(f'\n   Langmale (Byers 2018) for reference:')
+print(f'   Lake ~1,100,000 m³  →  Flood ~1,300,000 m³')
+
+
+
+
+
+# It takes long time to fill the dem with this method.
+def fill_sinks(dem):
+    """
+    Fills artificial pits in DEM so flood
+    can flow continuously downstream without
+    getting trapped in low points.
+    """
+    dem_filled = dem.copy()
+    rows, cols = dem.shape
+
+    neighbors = [(-1,-1),(-1,0),(-1,1),
+                 (0,-1),        (0,1),
+                 (1,-1), (1,0), (1,1)]
+
+    changed    = True
+    iterations = 0
+
+    while changed and iterations < 100:
+        changed    = False
+        iterations += 1
+
+        for r in range(1, rows - 1):
+            for c in range(1, cols - 1):
+                if np.isnan(dem_filled[r, c]):
+                    continue
+
+                neighbor_elevs = []
+                for dr, dc in neighbors:
+                    val = dem_filled[r+dr, c+dc]
+                    if not np.isnan(val):
+                        neighbor_elevs.append(val)
+
+                if not neighbor_elevs:
+                    continue
+
+                if dem_filled[r, c] < min(neighbor_elevs):
+                    dem_filled[r, c] = min(neighbor_elevs)
+                    changed = True
+
+    return dem_filled
+
+
+print('Filling sinks in DEM...')
+print('(may take 1-3 minutes for 12.5m DEM)')
+dem_filled   = fill_sinks(dem)
+sinks_filled = np.sum((dem_filled > dem) & ~np.isnan(dem))
+print(f'✅ Done! {sinks_filled:,} sink cells filled.')
+
+
+
+
+
+
+# It takes short time to fill dem with this method.
+from scipy.ndimage import grey_closing, grey_dilation
+import numpy as np
+
+def fill_sinks_fast(dem):
+    """
+    Fast sink filling using scipy.
+    No extra installation needed.
+    Works with Python 3.12.
+    ~50x faster than pure Python loops.
+    """
+    dem_temp = dem.copy()
+    
+    # Remember where NaN cells are
+    nan_mask = np.isnan(dem_temp)
+    
+    # Replace NaN with very low value temporarily
+    # so morphological operations work correctly
+    dem_temp[nan_mask] = np.nanmin(dem_temp) - 1000
+    
+    # Progressive closing with increasing kernel sizes
+    # This fills sinks of different sizes
+    dem_filled = dem_temp.copy()
+    
+    for kernel_size in [3, 5, 7]:
+        dem_closed = grey_closing(dem_filled, size=kernel_size)
+        
+        # Only raise cells that are sinks
+        # never lower any cell
+        dem_filled = np.where(
+            dem_closed > dem_filled,
+            dem_closed,
+            dem_filled
+        )
+    
+    # Restore NaN cells
+    dem_filled[nan_mask] = np.nan
+    
+    return dem_filled.astype(np.float32)
+
+
+print('Filling sinks in DEM_ALOSwhole.tif...')
+print('Using scipy fast method (Python 3.12 compatible)')
+start = time.time()
+
+dem_filled   = fill_sinks_fast(dem)
+sinks_filled = np.sum((dem_filled > dem) & ~np.isnan(dem))
+elapsed      = time.time() - start
+
+print(f'✅ Done in {elapsed:.1f} seconds!')
+print(f'   Sinks filled : {sinks_filled:,} cells')
+print(f'   DEM shape    : {dem_filled.shape}')
+print(f'   Elevation min: {np.nanmin(dem_filled):.1f} m')
+print(f'   Elevation max: {np.nanmax(dem_filled):.1f} m')
+
+
+
+
+
+
+def route_flood_single(dem, start_row, start_col,
+                        flood_volume_m3, cell_size_m):
+    """
+    Routes one flood simulation from outlet downstream.
+    Always flows to lowest neighboring cell.
+    Stops when flood volume is exhausted.
+    Returns set of inundated (row, col) cells.
+    """
+    rows, cols = dem.shape
+
+    avg_depth_m  = 3.0
+    cell_area_m2 = cell_size_m ** 2
+    max_cells    = int(flood_volume_m3 / (avg_depth_m * cell_area_m2))
+
+    visited   = set()
+    inundated = set()
+
+    # Priority queue — lowest elevation processed first
+    pq = [(dem[start_row, start_col], start_row, start_col)]
+
+    neighbors = [(-1,-1),(-1,0),(-1,1),
+                 (0,-1),        (0,1),
+                 (1,-1), (1,0), (1,1)]
+
+    while pq and len(inundated) < max_cells:
+        elev, r, c = heapq.heappop(pq)
+
+        if (r, c) in visited:
+            continue
+
+        visited.add((r, c))
+        inundated.add((r, c))
+
+        for dr, dc in neighbors:
+            nr, nc = r + dr, c + dc
+            if (0 <= nr < rows and
+                0 <= nc < cols and
+                (nr, nc) not in visited and
+                not np.isnan(dem[nr, nc]) and
+                dem[nr, nc] <= elev + 10):
+                heapq.heappush(pq, (dem[nr, nc], nr, nc))
+
+    return inundated
+
+
+def run_monte_carlo(dem_filled, start_row, start_col,
+                     flood_volume_m3, cell_size_m,
+                     n_iterations=200, dem_error_m=3.0):
+    """
+    Runs flood routing n_iterations times.
+    Each run adds random DEM noise to simulate
+    elevation uncertainty in ASTER/SRTM data.
+
+    Returns probability map:
+      1.0 = flooded in every run
+      0.5 = flooded in half the runs
+      0.0 = never flooded
+    """
+    rows, cols       = dem_filled.shape
+    inundation_count = np.zeros((rows, cols), dtype=np.int32)
+
+    print(f'Running {n_iterations} Monte Carlo simulations...')
+    print('Progress: ', end='')
+
+    for i in range(n_iterations):
+
+        if (i + 1) % 50 == 0:
+            print(f'{i+1}...', end='', flush=True)
+
+        # Perturb DEM with random noise
+        noise         = np.random.normal(0.0, dem_error_m, dem_filled.shape)
+        dem_perturbed = dem_filled + noise
+        dem_perturbed[np.isnan(dem_filled)] = np.nan
+
+        # Route flood on this perturbed DEM
+        inundated_cells = route_flood_single(
+            dem_perturbed, start_row, start_col,
+            flood_volume_m3, cell_size_m
+        )
+
+        # Accumulate results
+        for r, c in inundated_cells:
+            inundation_count[r, c] += 1
+
+    print(' Done!')
+    return inundation_count / n_iterations
+
+
+print('✅ Routing functions ready!')
+
+
+
+
+
+
+print('=' * 50)
+print('  RUNNING MC-LCP — LUMDING TSHO')
+print('=' * 50)
+print(f'  Source   : row={outlet_row}, col={outlet_col}')
+print(f'  Elevation: {min_elev:.1f} m')
+print(f'  Volume   : {flood_volume_m3:,.0f} m³')
+print(f'  Runs     : {N_ITERATIONS}')
+print(f'  DEM error: ±{DEM_ERROR_M} m')
+print('=' * 50)
+
+start_time = time.time()
+
+probability_map = run_monte_carlo(
+    dem_filled      = dem_filled,
+    start_row       = outlet_row,
+    start_col       = outlet_col,
+    flood_volume_m3 = flood_volume_m3,
+    cell_size_m     = cell_size_m,
+    n_iterations    = N_ITERATIONS,
+    dem_error_m     = DEM_ERROR_M
+)
+
+elapsed = time.time() - start_time
+
+flooded_area_km2   = np.sum(probability_map > 0)    * (cell_size_m**2) / 1e6
+high_prob_area_km2 = np.sum(probability_map >= 0.5) * (cell_size_m**2) / 1e6
+
+print(f'\n✅ Simulation complete in {elapsed/60:.1f} minutes!')
+print(f'   Total flood area     : {flooded_area_km2:.3f} km²')
+print(f'   High prob area (>50%): {high_prob_area_km2:.3f} km²')
+print(f'   Max probability      : {probability_map.max():.2f}')
+
+
+
+
+
+
+
+# --- ADDED: Coordinate alignment variables from CRS Diagnosis ---
+# [left, right, bottom, top] from BoundingBox
+dem_ext = [418607.21875, 497419.71875, 3033707.75, 3104695.25]
+
+# Convert pixel outlet (row=2631, col=3572) to UTM
+# x = left + col * res_x | y = top + row * res_y
+out_x = 418607.22 + (3572 * 12.5)
+out_y = 3104695.25 + (2631 * -12.5)
+
+fig, axes = plt.subplots(1, 2, figsize=(16, 7))
+
+# ---- Left: probability overlay on DEM ----
+ax1 = axes[0]
+# Added extent
+ax1.imshow(dem, cmap='gray', extent=dem_ext,
+           vmin=np.nanpercentile(dem, 2),
+           vmax=np.nanpercentile(dem, 98), alpha=0.6)
+
+prob_masked = np.ma.masked_where(probability_map == 0, probability_map)
+cmap_flood  = mcolors.LinearSegmentedColormap.from_list(
+                  'flood', ['#ffffcc','#fed976',
+                            '#fd8d3c','#e31a1c','#800026'])
+
+# Added extent
+im = ax1.imshow(prob_masked, cmap=cmap_flood, extent=dem_ext,
+                 vmin=0.1, vmax=1.0, alpha=0.85)
+# Changed to UTM coordinates
+ax1.plot(out_x, out_y, 'b*',
+          markersize=15, label='Dam outlet', zorder=5)
+lake_gdf.boundary.plot(ax=ax1, color='cyan',
+                        linewidth=1.5, label='Lake')
+dam_gdf.boundary.plot(ax=ax1, color='brown',
+                       linewidth=1.5, label='Dam')
+plt.colorbar(im, ax=ax1, label='Flood Probability', shrink=0.8)
+ax1.set_title('Flood Probability Map\nLumding Tsho',
+               fontsize=13, fontweight='bold')
+ax1.legend(fontsize=9)
+ax1.set_xlabel('Easting (m)')
+ax1.set_ylabel('Northing (m)')
+
+# ---- Right: risk zone categories ----
+ax2 = axes[1]
+# Added extent
+ax2.imshow(dem, cmap='gray', extent=dem_ext,
+           vmin=np.nanpercentile(dem, 2),
+           vmax=np.nanpercentile(dem, 98), alpha=0.6)
+
+risk_map = np.zeros_like(probability_map)
+risk_map[probability_map >= 0.10] = 1   # Low
+risk_map[probability_map >= 0.25] = 2   # Moderate
+risk_map[probability_map >= 0.50] = 3   # High
+risk_map[probability_map >= 0.75] = 4   # Very High
+
+risk_masked = np.ma.masked_where(risk_map == 0, risk_map)
+cmap_risk   = mcolors.ListedColormap(
+                  ['#ffffb2','#fecc5c','#fd8d3c','#e31a1c'])
+
+# Added extent
+im2 = ax2.imshow(risk_masked, cmap=cmap_risk, extent=dem_ext,
+                  vmin=1, vmax=4, alpha=0.85)
+# Changed to UTM coordinates
+ax2.plot(out_x, out_y, 'b*',
+          markersize=15, label='Dam outlet', zorder=5)
+lake_gdf.boundary.plot(ax=ax2, color='cyan',
+                        linewidth=1.5, label='Lake')
+dam_gdf.boundary.plot(ax=ax2, color='brown',
+                       linewidth=1.5, label='Dam')
+
+cbar2 = plt.colorbar(im2, ax=ax2, shrink=0.8)
+cbar2.set_ticks([1.375, 2.125, 2.875, 3.625])
+cbar2.set_ticklabels(['Low\n(10-25%)', 'Moderate\n(25-50%)',
+                       'High\n(50-75%)', 'Very High\n(>75%)'])
+cbar2.set_label('Risk Zone')
+ax2.set_title('Flood Risk Zones\nLumding Tsho',
+               fontsize=13, fontweight='bold')
+ax2.legend(fontsize=9)
+ax2.set_xlabel('Easting (m)')
+ax2.set_ylabel('Northing (m)')
+
+# --- ADDED: Zoom into flood area to remove blank space ---
+l_minx, l_miny, l_maxx, l_maxy = lake_gdf.total_bounds
+for ax in [ax1, ax2]:
+    ax.set_xlim(l_minx - 2000, l_maxx + 12000)
+    ax.set_ylim(l_miny - 12000, l_maxy + 2000)
+
+plt.suptitle(f'MC-LCP GLOF Assessment — Lumding Tsho  |  '
+              f'Volume: {flood_volume_m3:,.0f} m³  |  '
+              f'Iterations: {N_ITERATIONS}',
+              fontsize=11, y=1.01)
+plt.tight_layout()
+plt.savefig('03_flood_probability_map.png', dpi=200, bbox_inches='tight')
+plt.show()
+print('✅ Saved as 03_flood_probability_map.png')
+
+
+
+
+
+
+# Check CRS of all three files
+print('=' * 55)
+print('  CRS DIAGNOSIS')
+print('=' * 55)
+
+# DEM CRS
+with rasterio.open(DEM_PATH) as src:
+    print(f'\n  DEM CRS:')
+    print(f'  {src.crs}')
+    print(f'  Bounds: {src.bounds}')
+    print(f'  Transform: {src.transform}')
+
+# Lake CRS
+print(f'\n  Lake CRS:')
+print(f'  {lake_gdf.crs}')
+print(f'  Bounds: {lake_gdf.total_bounds}')
+
+# Dam CRS
+print(f'\n  Dam CRS:')
+print(f'  {dam_gdf.crs}')
+print(f'  Bounds: {dam_gdf.total_bounds}')
+
+print('\n' + '=' * 55)
+
+
+
+
+
+
+output_profile = dem_profile.copy()
+output_profile.update({'dtype': 'float32', 'count': 1, 'nodata': -9999})
+
+# Save probability map
+prob_out = probability_map.astype(np.float32)
+prob_out[np.isnan(dem)] = -9999
+with rasterio.open(OUTPUT_PATH, 'w', **output_profile) as dst:
+    dst.write(prob_out, 1)
+print(f'✅ Probability map saved : {OUTPUT_PATH}')
+
+# Save risk zone map
+risk_out = risk_map.astype(np.float32)
+risk_out[np.isnan(dem)] = -9999
+with rasterio.open('lumding_tsho_risk_zones.tif',
+                    'w', **output_profile) as dst:
+    dst.write(risk_out, 1)
+print(f'✅ Risk zone map saved   : lumding_tsho_risk_zones.tif')
+print(f'\n   Open both files in QGIS for further analysis')
+print(f'   Probability values : 0 = no risk,  1 = certain flood')
+print(f'   Risk zone values   : 1 = Low,  2 = Moderate,  '
+      f'3 = High,  4 = Very High')
+
+
+
+
+
+low_area       = np.sum((probability_map >= 0.10) &
+                         (probability_map <  0.25)) * (cell_size_m**2) / 1e6
+moderate_area  = np.sum((probability_map >= 0.25) &
+                         (probability_map <  0.50)) * (cell_size_m**2) / 1e6
+high_area      = np.sum((probability_map >= 0.50) &
+                         (probability_map <  0.75)) * (cell_size_m**2) / 1e6
+very_high_area = np.sum(probability_map >= 0.75)    * (cell_size_m**2) / 1e6
+total_area     = np.sum(probability_map >  0)       * (cell_size_m**2) / 1e6
+
+print('=' * 55)
+print('  FINAL RESULTS — LUMDING TSHO MC-LCP')
+print('=' * 55)
+print(f'\n  LAKE AND DAM:')
+print(f'  Lake area             : {lake_area_km2:.4f} km²')
+print(f'  Lake volume           : {lake_volume_m3:,.0f} m³')
+print(f'  Outlet elevation      : {min_elev:.1f} m asl')
+print(f'  Est. dam height       : '
+      f'{upstream_lowest["elevation"] - min_elev:.1f} m')
+print(f'\n  SIMULATION:')
+print(f'  MC iterations         : {N_ITERATIONS}')
+print(f'  DEM resolution        : {cell_size_m:.0f} m')
+print(f'  DEM vertical error    : ±{DEM_ERROR_M} m')
+print(f'  Flood volume used     : {flood_volume_m3:,.0f} m³')
+print(f'\n  FLOOD EXTENT BY RISK ZONE:')
+print(f'  Very High  (>75%)     : {very_high_area:.4f} km²')
+print(f'  High       (50-75%)   : {high_area:.4f} km²')
+print(f'  Moderate   (25-50%)   : {moderate_area:.4f} km²')
+print(f'  Low        (10-25%)   : {low_area:.4f} km²')
+print(f'  Total affected area   : {total_area:.4f} km²')
+print(f'\n  OUTPUT FILES:')
+print(f'  {OUTPUT_PATH}')
+print(f'  lumding_tsho_risk_zones.tif')
+print(f'  01_dem.png')
+print(f'  02_dam_outlet.png')
+print(f'  03_flood_probability_map.png')
+print('=' * 55)
+print('\n  ⚠️  IMPORTANT NOTES:')
+print('  - Screening tool only — not for infrastructure design')
+print('  - Volume estimate carries ±30-50% uncertainty')
+print('  - For detailed planning use BASEMENT 2D model')
+print('  - Results depend heavily on DEM quality')
+print('=' * 55)
+
+
+
+
+
+
+# Determine number of buildings affected for total area and for each risk class. Building Polygon extracted from GEE using Google building footprint.
+import geopandas as gpd
+import rasterio
+import numpy as np
+
+# 1. Load your GEE Shapefile (Replace with your actual filename)
+BUILDING_SHAPEFILE = 'Buildings_Export_Lumding.shp' 
+buildings = gpd.read_file(BUILDING_SHAPEFILE)
+
+# 2. Project to match your analysis (UTM Zone 45N)
+buildings = buildings.to_crs(epsg=32645)
+
+# 3. Load the Flood Probability Raster
+with rasterio.open('lumding_tsho_risk_zones.tif') as src:
+    risk_map = src.read(1)
+    transform = src.transform
+
+def get_risk_class(geom, risk_array, transform):
+    # Get the centroid of the building
+    cx, cy = geom.centroid.x, geom.centroid.y
+    
+    # Convert map coordinates (meters) to pixel indices (row, col)
+    row, col = src.index(cx, cy)
+    
+    # Check if building is within the raster bounds
+    if 0 <= row < risk_array.shape[0] and 0 <= col < risk_array.shape[1]:
+        return risk_array[row, col]
+    return 0 # Outside analysis area
+
+# 4. Calculate risk for every building
+buildings['risk_zone'] = buildings.geometry.apply(
+    lambda x: get_risk_class(x, risk_map, transform)
+)
+
+# 5. Generate the Exposure Report
+total_buildings = len(buildings[buildings['risk_zone'] > 0])
+summary = buildings['risk_zone'].value_counts()
+
+risk_labels = {
+    1: 'Low Risk (10-25%)',
+    2: 'Moderate Risk (25-50%)',
+    3: 'High Risk (50-75%)',
+    4: 'Very High Risk (>75%)'
+}
+
+print("="*40)
+print(f"TOTAL BUILDINGS IN FLOOD PATH: {total_buildings}")
+print("="*40)
+for val, label in risk_labels.items():
+    count = summary.get(val, 0)
+    print(f"{label:25}: {count} buildings")
+print("="*40)
+
+
+
+
+
+
+import rasterio
+import numpy as np
+import pandas as pd
+from rasterio.enums import Resampling
+
+# 1. Map Definitions
+lulc_labels = {
+    1: "Waterbody", 2: "Glacier", 3: "Snow", 4: "Forest", 
+    5: "Riverbed", 6: "Built-up area", 7: "Cropland", 
+    8: "Bare soil", 9: "Bare rock", 10: "Grassland", 11: "Other wooded land"
+}
+
+risk_labels = {1: 'Low Risk', 2: 'Moderate Risk', 3: 'High Risk', 4: 'Very High Risk'}
+
+# 2. Load and Align Data
+with rasterio.open('lumding_tsho_risk_zones.tif') as risk_src:
+    risk_data = risk_src.read(1)
+    # Area of 1 pixel in square kilometers (m2 divided by 1,000,000)
+    pixel_area_km2 = abs(risk_src.res[0] * risk_src.res[1]) / 1_000_000 
+
+with rasterio.open('LULC.tif') as lulc_src:
+    lulc_data = lulc_src.read(1, out_shape=risk_data.shape, resampling=Resampling.nearest)
+
+# 3. Processing
+results_detailed = []
+results_summary = []
+unique_ids = np.unique(lulc_data[lulc_data > 0])
+
+for l_id in unique_ids:
+    class_name = lulc_labels.get(l_id, f"Class {l_id}")
+    class_mask = (lulc_data == l_id)
+    
+    # Calculate Total Area of the Class in the whole map
+    total_class_area_km2 = np.sum(class_mask) * pixel_area_km2
+    
+    # Calculate Total Affected Area (any risk level 1, 2, 3, or 4)
+    total_affected_mask = class_mask & (risk_data > 0)
+    total_affected_area_km2 = np.sum(total_affected_mask) * pixel_area_km2
+    total_impact_percent = (total_affected_area_km2 / total_class_area_km2) * 100
+    
+    # Store Summary Data
+    results_summary.append({
+        'LULC Class': class_name,
+        'Total Area (km²)': total_class_area_km2,
+        'Total Affected (km²)': total_affected_area_km2,
+        'Overall % Affected': total_impact_percent
+    })
+    
+    # Breakdown by Risk Zone
+    for r_id, r_name in risk_labels.items():
+        impact_mask = class_mask & (risk_data == r_id)
+        area_km2 = np.sum(impact_mask) * pixel_area_km2
+        if area_km2 > 0:
+            results_detailed.append({
+                'LULC Class': class_name,
+                'Hazard Zone': r_name,
+                'Area (km²)': area_km2,
+                '% of Class': (area_km2 / total_class_area_km2) * 100
+            })
+
+# 4. Generate Reports
+df_summary = pd.DataFrame(results_summary)
+df_detailed = pd.DataFrame(results_detailed)
+
+print("\n" + "="*80)
+print("1. SUMMARY: TOTAL AFFECTED AREA PER LULC CLASS")
+print("="*80)
+print(df_summary.to_string(index=False, formatters={'Total Area (km²)':'{:,.4f}'.format, 'Total Affected (km²)':'{:,.4f}'.format, 'Overall % Affected':'{:.2f}%'.format}))
+
+print("\n" + "="*80)
+print("2. DETAILED BREAKDOWN BY RISK ZONE")
+print("="*80)
+print(df_detailed.to_string(index=False, formatters={'Area (km²)':'{:,.4f}'.format, '% of Class':'{:.2f}%'.format}))
+
+# Whole Total Probability Area (The entire flood path footprint)
+total_hazard_km2 = np.sum(risk_data > 0) * pixel_area_km2
+print("\n" + "="*80)
+print(f"WHOLE TOTAL PROBABILITY AREA (Total Hazard Footprint): {total_hazard_km2:,.4f} km²")
+print("="*80)
