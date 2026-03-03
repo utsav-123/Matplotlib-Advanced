@@ -1,0 +1,534 @@
+!pip install oggm salem
+
+
+
+from oggm import cfg
+from oggm import tasks, utils, workflow, graphics, DEFAULT_BASE_URL
+from oggm.shop import gcm_climate
+from oggm.sandbox import distribute_2d
+import salem
+import xarray as xr
+import numpy as np
+import glob
+import os
+import matplotlib.pyplot as plt
+from matplotlib import animation
+from IPython.display import HTML
+
+
+
+cfg.initialize(logging_level='WARNING')
+cfg.PATHS['working_dir'] = utils.get_temp_dir('OGGM_distributed_cmip6', reset=True)
+
+
+
+
+rgi_ids = ['RGI60-15.03499']  # Lumding
+
+# Level 4 keeps gridded_data.nc which is required for 2D distribution
+gdirs = workflow.init_glacier_directories(
+    rgi_ids,
+    prepro_base_url=DEFAULT_BASE_URL,
+    from_prepro_level=4,
+    prepro_border=80
+)
+
+
+
+
+# Run historical spinup from RGI date to end of W5E5 climate data (2019)
+workflow.execute_entity_task(
+    tasks.run_from_climate_data,
+    gdirs,
+    ys=None,   # start from RGI date automatically
+    ye=2019,   # W5E5 ends 2019
+    output_filesuffix='_spinup_historical',
+)
+print('Historical spinup done.')
+
+
+
+# 4 GCMs covering low to high sensitivity
+members = [
+    'gfdl-esm4_r1i1p1f1',        # low sensitivity
+    'mpi-esm1-2-hr_r1i1p1f1',    # low sensitivity
+    'mri-esm2-0_r1i1p1f1',       # low-medium sensitivity
+    'ipsl-cm6a-lr_r1i1p1f1',     # high sensitivity
+]
+
+# ISIMIP3b available SSPs (ssp245 not available, will be interpolated)
+ssps_isimip = ['ssp126', 'ssp370', 'ssp585']
+
+# Final SSP list including interpolated ssp245
+ssps = ['ssp126', 'ssp245', 'ssp370', 'ssp585']
+
+ssp_labels = {
+    'ssp126': 'SSP1-2.6',
+    'ssp245': 'SSP2-4.5 (interpolated)',
+    'ssp370': 'SSP3-7.0',
+    'ssp585': 'SSP5-8.5'
+}
+colors = {
+    'ssp126': 'steelblue',
+    'ssp245': 'green',
+    'ssp370': 'orange',
+    'ssp585': 'firebrick'
+}
+# Short GCM name for legend labels
+gcm_names = [m.split('_')[0].upper() for m in members]
+gcm_styles = ['-', '--', '-.', ':']  # distinct linestyles per GCM
+
+
+
+
+# Download ISIMIP3b bias-corrected CMIP6 data for all GCMs and available SSPs
+for member in members:
+    for ssp in ssps_isimip:
+        workflow.execute_entity_task(
+            gcm_climate.process_monthly_isimip_data,
+            gdirs,
+            ssp=ssp,
+            member=member,
+            output_filesuffix=f'_ISIMIP3b_{member}_{ssp}',
+        )
+    print(f'Processed all SSPs for: {member}')
+
+
+
+
+# Run future simulations 2020-2100 for all GCMs and available SSPs
+for member in members:
+    for ssp in ssps_isimip:
+        rid = f'_ISIMIP3b_{member}_{ssp}'
+        workflow.execute_entity_task(
+            tasks.run_from_climate_data,
+            gdirs,
+            ys=2020, ye=2100,
+            climate_filename='gcm_data',
+            climate_input_filesuffix=rid,
+            init_model_filesuffix='_spinup_historical',
+            output_filesuffix=rid,
+            store_fl_diagnostics=True,
+        )
+    print(f'Simulations complete for: {member}')
+
+
+
+
+
+# Prepare 2D distribution (run once only)
+workflow.execute_entity_task(distribute_2d.add_smoothed_glacier_topo, gdirs)
+workflow.execute_entity_task(tasks.distribute_thickness_per_altitude, gdirs)
+workflow.execute_entity_task(distribute_2d.assign_points_to_band, gdirs)
+
+
+
+
+gdir = gdirs[0]
+
+with xr.open_dataset(gdir.get_filepath('gridded_data')) as ds_grid:
+    ds_grid = ds_grid.load()
+
+f, ax = plt.subplots()
+ds_grid.distributed_thickness.plot(ax=ax)
+ax.axis('equal')
+ax.set_title('Initial Ice Thickness — Lumding')
+
+
+
+
+# Distribute 2D thickness for all GCMs and available SSPs
+ds_cmip = {member: {} for member in members}
+
+for member in members:
+    for ssp in ssps_isimip:
+        rid = f'_ISIMIP3b_{member}_{ssp}'
+        result = workflow.execute_entity_task(
+            distribute_2d.distribute_thickness_from_simulation,
+            gdirs,
+            input_filesuffix=rid,
+            concat_input_filesuffix='_spinup_historical',
+            output_filesuffix=rid,
+            rolling_mean_smoothing=7,
+            fl_thickness_threshold=1,
+        )
+        ds_cmip[member][ssp] = result[0]
+    print(f'2D distribution done for: {member}')
+
+
+
+
+
+
+# Interpolate SSP2-4.5 as the average of SSP1-2.6 and SSP3-7.0
+# SSP2-4.5 (~2.7C by 2100) lies almost exactly halfway
+# between SSP1-2.6 (~1.8C) and SSP3-7.0 (~3.6C)
+for member in members:
+    thk_126 = ds_cmip[member]['ssp126'].simulated_thickness
+    thk_370 = ds_cmip[member]['ssp370'].simulated_thickness
+    thk_245 = (thk_126 + thk_370) / 2.0
+
+    ds_245 = ds_cmip[member]['ssp126'].copy(deep=True)
+    ds_245['simulated_thickness'] = thk_245
+    ds_cmip[member]['ssp245'] = ds_245
+
+print('SSP2-4.5 interpolated for all GCMs.')
+print('Available SSPs per GCM:', list(ds_cmip[members[0]].keys()))
+
+
+
+
+
+
+# Thickness maps at 2100: rows = 4 SSPs, cols = 4 GCMs
+fig, axes = plt.subplots(len(ssps), len(members), figsize=(20, 16))
+
+for i, ssp in enumerate(ssps):
+    for j, member in enumerate(members):
+        ax = axes[i][j]
+        ds_cmip[member][ssp].simulated_thickness.sel(time=2100).plot(
+            ax=ax, vmax=300, cmap='Blues', add_colorbar=False
+        )
+        ax.axis('equal')
+        ax.set_title(f'{gcm_names[j]}\n{ssp_labels[ssp]}', fontsize=8)
+        ax.set_xlabel('')
+        ax.set_ylabel('')
+
+fig.suptitle('Lumding Glacier — Ice Thickness at 2100\n(4 GCMs × 4 SSPs)', fontsize=14)
+plt.tight_layout()
+
+
+
+
+
+
+# --- GLACIER AREA ---
+# Option 3: faint individual GCM lines + min-max shading + bold ensemble mean
+fig, axes = plt.subplots(2, 2, figsize=(14, 10), sharey=True, sharex=True)
+axes_flat = axes.flatten()
+
+for idx, ssp in enumerate(ssps):
+    ax = axes_flat[idx]
+    all_areas = []
+
+    # --- individual GCM lines (faint, distinct linestyle) ---
+    for k, member in enumerate(members):
+        area = (
+            (ds_cmip[member][ssp].simulated_thickness > 0)
+            .sum(dim=['x', 'y']) * gdir.grid.dx**2 * 1e-6
+        )
+        area_future = area.sel(time=slice(2020, None))
+        ax.plot(area_future.time, area_future.values,
+                color=colors[ssp], linestyle=gcm_styles[k],
+                linewidth=1.0, alpha=0.5,
+                label=gcm_names[k])
+        all_areas.append(area_future.values)
+
+    times     = area_future.time.values
+    mean_area = np.mean(all_areas, axis=0)
+    min_area  = np.min(all_areas,  axis=0)
+    max_area  = np.max(all_areas,  axis=0)
+
+    # --- min-max shading ---
+    ax.fill_between(times, min_area, max_area,
+                    color=colors[ssp], alpha=0.15,
+                    label='GCM range (min–max)')
+
+    # --- bold ensemble mean ---
+    ax.plot(times, mean_area, color=colors[ssp],
+            linewidth=3, linestyle='-', label='Ensemble mean')
+
+    ax.axhline(gdir.rgi_area_km2, color='black', linestyle='--',
+               linewidth=1, label='RGI Reference')
+    ax.axvline(2020, color='grey', linestyle=':', linewidth=1)
+    ax.set_title(ssp_labels[ssp], fontsize=11, fontweight='bold')
+    ax.set_ylabel('Glacier Area [km²]')
+    ax.set_xlabel('Year')
+    ax.legend(fontsize=7, ncol=2)
+
+fig.suptitle(
+    'Lumding Glacier Area — 4-GCM Ensemble (2020–2100)\n'
+    'Faint lines = individual GCMs | Shading = min–max range | Bold = ensemble mean',
+    fontsize=12
+)
+plt.tight_layout()
+
+
+
+
+
+
+# --- GLACIER VOLUME ---
+# Option 3: faint individual GCM lines + min-max shading + bold ensemble mean
+fig, ax = plt.subplots(figsize=(13, 7))
+
+for ssp in ssps:
+    all_vols = []
+
+    # --- individual GCM lines (faint, distinct linestyle) ---
+    for k, member in enumerate(members):
+        vol = (
+            ds_cmip[member][ssp].simulated_thickness
+            .sum(dim=['x', 'y']) * gdir.grid.dx**2 * 1e-9
+        )
+        vol_future = vol.sel(time=slice(2020, None))
+        ax.plot(vol_future.time, vol_future.values,
+                color=colors[ssp], linestyle=gcm_styles[k],
+                linewidth=1.0, alpha=0.5)
+        all_vols.append(vol_future.values)
+
+    times    = vol_future.time.values
+    mean_vol = np.mean(all_vols, axis=0)
+    min_vol  = np.min(all_vols,  axis=0)
+    max_vol  = np.max(all_vols,  axis=0)
+
+    # --- min-max shading ---
+    ax.fill_between(times, min_vol, max_vol,
+                    color=colors[ssp], alpha=0.15)
+
+    # --- bold ensemble mean ---
+    ax.plot(times, mean_vol, color=colors[ssp],
+            linewidth=3, linestyle='-', label=ssp_labels[ssp])
+
+# Custom legend: SSP mean lines
+ax.axvline(2020, color='grey', linestyle=':', linewidth=1, label='Projection start')
+
+# Add GCM linestyle legend separately
+from matplotlib.lines import Line2D
+gcm_legend = [
+    Line2D([0], [0], color='grey', linestyle=gcm_styles[k],
+           linewidth=1.2, label=gcm_names[k])
+    for k in range(len(members))
+]
+legend1 = ax.legend(fontsize=9, loc='upper right', title='SSP Scenario')
+legend2 = ax.legend(handles=gcm_legend, fontsize=8,
+                    loc='center right', title='Individual GCMs')
+ax.add_artist(legend1)  # keep both legends
+
+ax.set_ylabel('Glacier Volume [km³]')
+ax.set_xlabel('Year')
+ax.set_title(
+    'Lumding Glacier Volume — 4-GCM Ensemble (2020–2100)\n'
+    'Faint lines = individual GCMs | Shading = min–max range | Bold = ensemble mean\n'
+    'SSP2-4.5 interpolated from SSP1-2.6 & SSP3-7.0',
+    fontsize=11
+)
+plt.tight_layout()
+
+
+
+
+
+
+
+# Animate ensemble mean thickness under SSP5-8.5
+ssp_anim = 'ssp585'
+
+# Stack all 4 GCMs and compute ensemble mean
+stacked = np.stack([
+    ds_cmip[member][ssp_anim].simulated_thickness.values
+    for member in members
+], axis=0)
+mean_thk = stacked.mean(axis=0)  # shape: (time, y, x)
+
+# Trim to post-RGI date
+time_coords = ds_cmip[members[0]][ssp_anim].simulated_thickness.time.values
+time_mask   = time_coords >= gdir.rgi_date
+mean_thk    = mean_thk[time_mask]
+time_coords = time_coords[time_mask]
+
+fig, ax = plt.subplots()
+im = ax.imshow(
+    mean_thk[0], origin='lower', cmap='viridis',
+    vmin=0, vmax=np.nanmax(mean_thk)
+)
+plt.colorbar(im, ax=ax, label='Ice Thickness [m]')
+ax.axis('off')
+
+def animate(frame):
+    ax.set_title(
+        f'Lumding — Ensemble Mean ({ssp_labels[ssp_anim]})'
+        f' — Year {float(time_coords[frame]):.0f}'
+    )
+    im.set_array(mean_thk[frame])
+
+ani_glacier = animation.FuncAnimation(fig, animate, frames=len(time_coords), interval=100)
+HTML(ani_glacier.to_jshtml())
+
+
+
+
+
+
+# Save animation as mp4
+FFwriter = animation.FFMpegWriter(fps=5)
+ani_glacier.save('Lumding_CMIP6_ensemble_ssp585.mp4', writer=FFwriter)
+print(f'Saved to: {os.getcwd()}')
+
+
+
+
+
+# Animate ensemble mean thickness under SSP2-4.5
+ssp_anim = 'ssp245'
+
+# Stack all 4 GCMs and compute ensemble mean
+stacked = np.stack([
+    ds_cmip[member][ssp_anim].simulated_thickness.values
+    for member in members
+], axis=0)
+mean_thk = stacked.mean(axis=0)  # shape: (time, y, x)
+
+# Trim to post-RGI date
+time_coords = ds_cmip[members[0]][ssp_anim].simulated_thickness.time.values
+time_mask   = time_coords >= gdir.rgi_date
+mean_thk    = mean_thk[time_mask]
+time_coords = time_coords[time_mask]
+
+fig, ax = plt.subplots()
+im = ax.imshow(
+    mean_thk[0], origin='lower', cmap='viridis',
+    vmin=0, vmax=np.nanmax(mean_thk)
+)
+plt.colorbar(im, ax=ax, label='Ice Thickness [m]')
+ax.axis('off')
+
+def animate(frame):
+    ax.set_title(
+        f'Lumding — Ensemble Mean ({ssp_labels[ssp_anim]})'
+        f' — Year {float(time_coords[frame]):.0f}'
+    )
+    im.set_array(mean_thk[frame])
+
+ani_glacier = animation.FuncAnimation(fig, animate, frames=len(time_coords), interval=100)
+HTML(ani_glacier.to_jshtml())
+
+
+
+
+
+
+
+
+# Save animation as mp4
+FFwriter = animation.FFMpegWriter(fps=5)
+ani_glacier.save('Lumding_CMIP6_ensemble_ssp245.mp4', writer=FFwriter)
+print(f'Saved to: {os.getcwd()}')
+
+
+
+
+
+
+
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
+from matplotlib import animation
+from IPython.display import HTML
+import numpy as np
+
+ssp_anim = 'ssp585'
+
+# --- Load DEM and compute hillshade ---
+with xr.open_dataset(gdir.get_filepath('gridded_data')) as ds_grid:
+    ds_grid = ds_grid.load()
+
+dem = ds_grid['topo'].values  # DEM elevation
+
+def hillshade(dem, azimuth=315, altitude=45):
+    """Compute hillshade from DEM."""
+    azimuth_rad = np.deg2rad(360 - azimuth)
+    altitude_rad = np.deg2rad(altitude)
+
+    # Gradient
+    dy, dx = np.gradient(dem)
+    slope = np.arctan(np.sqrt(dx**2 + dy**2))
+    aspect = np.arctan2(-dy, dx)
+
+    # Hillshade formula
+    shade = (np.sin(altitude_rad) * np.cos(slope) +
+             np.cos(altitude_rad) * np.sin(slope) *
+             np.cos(azimuth_rad - aspect))
+    shade = np.clip(shade, 0, 1)
+    return shade
+
+hs = hillshade(dem, azimuth=315, altitude=45)
+
+# --- Stack GCMs and compute ensemble mean ---
+stacked = np.stack([
+    ds_cmip[member][ssp_anim].simulated_thickness.values
+    for member in members
+], axis=0)
+mean_thk = stacked.mean(axis=0)  # (time, y, x)
+
+# Trim to post-RGI date
+time_coords = ds_cmip[members[0]][ssp_anim].simulated_thickness.time.values
+time_mask   = time_coords >= gdir.rgi_date
+mean_thk    = mean_thk[time_mask]
+time_coords = time_coords[time_mask]
+
+# --- Build masked ice thickness (transparent where no ice) ---
+def get_ice_rgba(thk_frame, cmap_name='Blues', vmax=300):
+    """Convert thickness array to RGBA, transparent where ice = 0."""
+    norm   = mcolors.Normalize(vmin=0, vmax=vmax)
+    cmap   = plt.cm.get_cmap(cmap_name)
+    rgba   = cmap(norm(thk_frame))
+    # Set alpha=0 where no ice
+    rgba[..., 3] = np.where(thk_frame > 1, 0.85, 0)
+    return rgba
+
+# --- Set up figure ---
+fig, ax = plt.subplots(figsize=(8, 7), dpi=120)
+ax.axis('off')
+
+# Layer 1: DEM colored by elevation (terrain colormap)
+dem_plot = ax.imshow(dem, cmap='terrain', origin='lower',
+                     vmin=dem.min(), vmax=dem.max(), zorder=1)
+
+# Layer 2: Hillshade overlay (semi-transparent grey)
+hs_plot = ax.imshow(hs, cmap='gray', origin='lower',
+                    vmin=0, vmax=1, alpha=0.4, zorder=2)
+
+# Layer 3: Ice thickness (Blues, transparent where no ice)
+ice_rgba = get_ice_rgba(mean_thk[0])
+ice_plot = ax.imshow(ice_rgba, origin='lower', zorder=3)
+
+# Colorbar for ice thickness
+sm = plt.cm.ScalarMappable(cmap='Blues',
+                            norm=mcolors.Normalize(vmin=0, vmax=300))
+sm.set_array([])
+cbar = plt.colorbar(sm, ax=ax, fraction=0.03, pad=0.02)
+cbar.set_label('Ice Thickness [m]', fontsize=10)
+
+# Year text on plot
+year_text = ax.text(0.02, 0.97, '', transform=ax.transAxes,
+                    fontsize=13, fontweight='bold', color='white',
+                    va='top', ha='left',
+                    bbox=dict(boxstyle='round,pad=0.3',
+                              facecolor='black', alpha=0.5))
+
+# SSP label
+ax.text(0.02, 0.90, f'{ssp_labels[ssp_anim]} | 4-GCM Ensemble Mean',
+        transform=ax.transAxes, fontsize=9, color='white',
+        va='top', ha='left',
+        bbox=dict(boxstyle='round,pad=0.3', facecolor='black', alpha=0.4))
+
+ax.set_title('Lumding Glacier — Ice Thickness Evolution', fontsize=13, pad=10)
+
+def animate(frame):
+    ice_rgba = get_ice_rgba(mean_thk[frame])
+    ice_plot.set_array(ice_rgba)
+    year_text.set_text(f'Year: {float(time_coords[frame]):.0f}')
+
+ani_glacier = animation.FuncAnimation(
+    fig, animate, frames=len(time_coords), interval=120
+)
+HTML(ani_glacier.to_jshtml())
+
+
+
+
+# Save animation as mp4
+FFwriter = animation.FFMpegWriter(fps=5)
+ani_glacier.save('Lumding_CMIP6_ensemble_ssp585_Hillshade.mp4', writer=FFwriter)
+print(f'Saved to: {os.getcwd()}')
